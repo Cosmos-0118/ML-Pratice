@@ -37,7 +37,7 @@ The notebooks report results as they came out, and where a first attempt was wea
 A few theory demos deliberately use small **synthetic** data where the truth is known (bagging on a sine curve, K-means vs. GMM on elongated clusters, PPCA dimension selection, the kernel-trick circles, HMM brute-force validation).
 
 ## Website (Vercel)
-[`website/`](website/) is a small static site (home page with a card per week, one page per week, plus a "what did not work" page) that summarises the results with the key figures (plain HTML + CSS, no build step).
+[`website/`](website/) is a small static site (home page with a card per week, one page per week, plus a "what did not work" page) that summarises the results with the key figures. Each week page also has an **editable, runnable code cell** (Python running in the browser via [Pyodide](https://pyodide.org); the snippets are in `website/code/`) and a link to the full notebook exported as HTML (`website/notebooks/`). No build step and no server.
 To deploy: import this repo in Vercel and set **Root Directory** to `website` (Framework Preset: *Other*, leave build/output empty).
 
 ## Run it
