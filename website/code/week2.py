@@ -1,85 +1,131 @@
 #: Unit 2 – Linear models for regression
 
 # %% Practice 1 | Implement linear regression to perform prediction
-#: Predict tomorrow's highest temperature from today's weather. Least squares has a closed-form answer, the normal equation w = (XᵀX)⁻¹Xᵀy. Train on 2012–2014, test on 2015.
-import numpy as np
+#: Predict tomorrow's highest temperature from today's weather. Linear regression learns one weight per input column: prediction = intercept + w1·x1 + w2·x2 + … We train on 80% of the days and test on the other 20%.
+import pandas as pd
 import matplotlib.pyplot as plt
-from weather import load, split, FEATURES
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, r2_score
 
-train, test = split(load())                                       # train on 2012-2014, test on 2015
-X_tr = np.c_[np.ones(len(train)), train[FEATURES]]                 # a column of ones is the intercept
-X_te = np.c_[np.ones(len(test)), test[FEATURES]]
-y_tr, y_te = train.temp_tomorrow.values, test.temp_tomorrow.values
+df = pd.read_csv("data/seattle_weather.csv")
 
-w = np.linalg.solve(X_tr.T @ X_tr, X_tr.T @ y_tr)                  # the normal equation
-pred = X_te @ w
-rmse = lambda y, p: np.sqrt(np.mean((y - p) ** 2))
-r2 = 1 - ((y_te - pred) ** 2).sum() / ((y_te - y_te.mean()) ** 2).sum()
+# Target: tomorrow's temp_max. shift(-1) moves every value up one row.
+df["temp_max_tomorrow"] = df["temp_max"].shift(-1)
+df = df.dropna()   # the last day has no tomorrow
 
-print(f"error on 2015:  'tomorrow = today' {rmse(y_te, test.temp_max):.2f} °C  |  linear regression {rmse(y_te, pred):.2f} °C   (R² = {r2:.2f})\n")
-for name, wi in zip(["intercept"] + FEATURES, w):
-    print(f"  weight of {name:<13} {wi:+.2f}")
+# Inputs (X) and output (y)
+X = df[["temp_max", "temp_min", "precipitation", "wind"]]
+y = df["temp_max_tomorrow"]
 
-fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.scatter(y_te, pred, s=12, alpha=.6); ax.plot([0, 35], [0, 35], "--", color="#e45756")
-ax.set_xlabel("actual temp_max tomorrow (°C)"); ax.set_ylabel("predicted (°C)"); ax.set_title(f"Predicted vs actual, 2015 (R² = {r2:.2f})")
-plt.show()
+# 80% of the days to train, 20% to test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.scatter(pred, y_te - pred, s=12, alpha=.6); ax.axhline(0, ls="--", color="#e45756")
-ax.set_xlabel("predicted (°C)"); ax.set_ylabel("residual (°C)"); ax.set_title("Residuals: no obvious pattern")
+# Train the model and predict
+model = LinearRegression()
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+# The learned equation
+print("Intercept:", round(model.intercept_, 2))
+for column, weight in zip(X.columns, model.coef_):
+    print("Weight of", column, ":", round(weight, 2))
+print()
+
+# How good the predictions are
+print("Mean absolute error:", round(mean_absolute_error(y_test, y_pred), 2), "°C")
+print("R² score:", round(r2_score(y_test, y_pred), 2), "(1 = perfect)")
+print()
+
+# A few predictions next to the real values
+result = pd.DataFrame({"actual": y_test.values, "predicted": y_pred.round(1)})
+print(result.head(10))
+
+# Plot: predicted against actual (perfect predictions lie on the red line)
+plt.figure(figsize=(9, 4.5))
+plt.scatter(y_test, y_pred, s=12)
+plt.plot([0, 36], [0, 36], color="red", linestyle="--")
+plt.xlabel("actual temp_max tomorrow (°C)")
+plt.ylabel("predicted (°C)")
+plt.title("Linear regression: predicted vs actual")
 plt.show()
 
 # %% Practice 2 | Implement Bayesian logistic regression and SVM for classification
-#: Will it rain tomorrow? Bayesian logistic regression uses the Laplace approximation: Newton's method finds the most probable weights and the curvature there gives their uncertainty. The SVM finds the widest margin between the classes; the RBF kernel lets the boundary curve.
+#: Will it rain tomorrow (1) or not (0)? Bayesian logistic regression starts with a prior belief that every weight is near 0, learns the most probable weights from the data, and also tells how sure it is about each weight. An SVM draws the boundary between the two classes with the widest possible margin.
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
-from weather import load, split, FEATURES
+from sklearn.metrics import accuracy_score
 
-train, test = split(load())
-sc = StandardScaler().fit(train[FEATURES])
-X, Xt = sc.transform(train[FEATURES]), sc.transform(test[FEATURES])
-y, yt = train.rain_tomorrow.values, test.rain_tomorrow.values
-sigmoid = lambda z: 1 / (1 + np.exp(-z))
-print(f"{"'tomorrow = today' accuracy on 2015:":<38} {np.mean(test.rain.values == yt):.3f}")
+df = pd.read_csv("data/seattle_weather.csv")
 
-# 1) Bayesian logistic regression (Laplace approximation, prior w ~ N(0, I))
-A, At = np.c_[np.ones(len(X)), X], np.c_[np.ones(len(Xt)), Xt]
-w = np.zeros(A.shape[1])
-for _ in range(25):                                                  # Newton's method for the most probable weights
-    p = sigmoid(A @ w)
-    grad = A.T @ (p - y) + w
-    hess = A.T @ (A * (p * (1 - p))[:, None]) + np.eye(len(w))
-    w -= np.linalg.solve(hess, grad)
-cov = np.linalg.inv(hess)                                            # posterior ≈ Gaussian(mean w, covariance cov)
-mu, var = At @ w, np.einsum("ij,jk,ik->i", At, cov, At)
-p_bayes = sigmoid(mu / np.sqrt(1 + np.pi * var / 8))                 # predictive probability, softened when unsure
-print(f"{'Bayesian logistic regression accuracy:':<38} {np.mean((p_bayes > .5) == yt):.3f}")
+# Target: 1 if it rains tomorrow, else 0
+df["precipitation_tomorrow"] = df["precipitation"].shift(-1)
+df["rain_tomorrow"] = (df["precipitation_tomorrow"] > 0).astype(int)
+df = df.dropna()   # the last day has no tomorrow
 
-# 2) Support vector machines
-for kernel in ["linear", "rbf"]:
-    svm = SVC(kernel=kernel, C=1.0).fit(X, y)
-    print(f"{'SVM (' + kernel + ' kernel) accuracy:':<38} {svm.score(Xt, yt):.3f}   support vectors: {svm.n_support_.sum()}")
+columns = ["temp_max", "temp_min", "precipitation", "wind"]
+X = df[columns]
+y = df["rain_tomorrow"]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Picture 1: what the data say about each weight (mean and 95% interval)
-fig, ax = plt.subplots(figsize=(9, 4.5))
-sd = np.sqrt(np.diag(cov))
-ax.errorbar(w, range(len(w)), xerr=1.96 * sd, fmt="o", capsize=4)
-ax.set_yticks(range(len(w)), ["intercept"] + FEATURES); ax.axvline(0, color="#e45756", ls="--"); ax.invert_yaxis()
-ax.set_xlabel("weight (mean and 95% interval)"); ax.set_title("Bayesian logistic regression: the weights and their uncertainty")
+# Put every column on the same scale (mean 0, std 1)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# 1. Bayesian logistic regression
+# The prior: every weight is near 0 (a Gaussian). In scikit-learn this prior is
+# the L2 penalty and C is its width. fit() finds the most probable weights.
+blr = LogisticRegression(C=1.0)
+blr.fit(X_train, y_train)
+blr_acc = accuracy_score(y_test, blr.predict(X_test))
+print("Bayesian logistic regression accuracy:", round(blr_acc, 3))
+
+# How sure are we about each weight? (Laplace approximation)
+# covariance = inverse of (Xᵀ · W · X + I/C), where W holds p(1 - p) for each day
+# and I/C comes from the prior (here C = 1, so it is just I)
+p = blr.predict_proba(X_train)[:, 1]
+W = np.diag(p * (1 - p))
+H = X_train.T @ W @ X_train + np.eye(len(columns))
+covariance = np.linalg.inv(H)
+std = np.sqrt(np.diag(covariance))
+
+weights = pd.DataFrame({"weight": blr.coef_[0], "± 2 std": 2 * std}, index=columns)
+print(weights.round(3))
+print()
+
+# Probability of rain tomorrow for the first 5 test days
+print("P(rain tomorrow) for 5 test days:", blr.predict_proba(X_test[:5])[:, 1].round(2))
+print()
+
+# 2. Support vector machines
+svm_linear = SVC(kernel="linear")
+svm_linear.fit(X_train, y_train)
+linear_acc = accuracy_score(y_test, svm_linear.predict(X_test))
+print("SVM (linear kernel) accuracy:", round(linear_acc, 3))
+
+svm_rbf = SVC(kernel="rbf")
+svm_rbf.fit(X_train, y_train)
+rbf_acc = accuracy_score(y_test, svm_rbf.predict(X_test))
+print("SVM (RBF kernel) accuracy:   ", round(rbf_acc, 3))
+
+# Plot 1: each weight with its uncertainty
+plt.figure(figsize=(9, 4.5))
+plt.errorbar(blr.coef_[0], columns, xerr=2 * std, fmt="o", capsize=5)
+plt.axvline(0, color="red", linestyle="--")
+plt.xlabel("weight (± 2 std)")
+plt.title("Bayesian logistic regression: weights and their uncertainty")
 plt.show()
 
-# Picture 2: an RBF SVM on two features, so its curved boundary can be drawn
-
-two = [FEATURES.index("precipitation"), FEATURES.index("temp_max")]
-svm2 = SVC(kernel="rbf", C=1.0).fit(X[:, two], y)
-xx, yy = np.meshgrid(np.linspace(-0.8, 4, 120), np.linspace(-2.5, 3, 120))
-zz = svm2.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
-fig, ax = plt.subplots(figsize=(9, 4.5))
-ax.contourf(xx, yy, zz, levels=[-.5, .5, 1.5], colors=["#72b7b2", "#e45756"], alpha=.2)
-ax.scatter(Xt[:, two[0]], Xt[:, two[1]], c=np.where(yt == 1, "#e45756", "#4c78a8"), s=10, alpha=.7)
-ax.set_xlabel("precipitation today (scaled)"); ax.set_ylabel("temp_max today (scaled)")
-ax.set_title("RBF SVM boundary, 2015 days (red = rain tomorrow)")
+# Plot 2: compare the accuracies
+plt.figure(figsize=(9, 4.5))
+plt.bar(["Bayesian logistic", "SVM linear", "SVM RBF"], [blr_acc, linear_acc, rbf_acc])
+plt.ylim(0.5, 0.8)
+plt.ylabel("accuracy")
+plt.title("Will it rain tomorrow? Test accuracy")
 plt.show()

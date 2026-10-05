@@ -10,9 +10,9 @@ Every **practice question** of the 21CSC305P Machine Learning syllabus (9 questi
 One row per day, 1,461 days, no missing values: precipitation (mm), highest and lowest temperature (°C), wind speed, and a weather label (sun, rain, drizzle, fog, snow).
 
 * Source: NOAA National Climatic Data Center, as packaged in [vega-datasets](https://github.com/vega/vega-datasets) (`seattle-weather.csv`). U.S. Government work, public domain.
-* [`website/data/seattle_weather.csv`](website/data/seattle_weather.csv) is the data and [`website/weather.py`](website/weather.py) loads it and adds a few columns (`rain`, `rain_tomorrow`, `temp_tomorrow`, month as a circle).
-* The `weather` label was built by the dataset's authors from the other columns, so it is never used as an input, only to colour the PCA plot in unit 3.
-* Models are trained on **2012–2014** and tested on **2015**; results are compared with a simple baseline ("tomorrow = today").
+* [`website/data/seattle_weather.csv`](website/data/seattle_weather.csv) is the data. Every program reads it itself with `pd.read_csv("data/seattle_weather.csv")`.
+* The code is written for beginners: one step per line, a comment above each step, and scikit-learn for the standard methods.
+* Most models train on 80% of the days and test on the other 20% (`train_test_split`, `random_state=42`); the HMM learns from 2012–2014 and is tested on 2015.
 
 ## The practice questions
 

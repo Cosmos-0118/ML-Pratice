@@ -18,10 +18,13 @@ WEEKS = {
     5: ("Week_05_Combining_Models_Ensembles", "Combining models"),
 }
 SETUP = '''%config InlineBackend.figure_format = "svg"
+import os
 import sys
-sys.path.insert(0, "website")          # weather.py and the data live in website/
+sys.path.insert(0, "website")          # plot style lives in website/weather.py
 from weather import use_style
-use_style()'''
+use_style()
+if os.path.basename(os.getcwd()) != "website":
+    os.chdir("website")                # so the programs find data/seattle_weather.csv'''
 
 
 def parse(path):
@@ -43,7 +46,7 @@ for number, (name, title) in WEEKS.items():
     cells = [nbformat.v4.new_markdown_cell(
         f"# Unit {number} — {title}\n\nThe practice questions of this unit (21CSC305P). "
         "Every question below is self-contained: run any cell on its own. All questions use the Seattle daily weather data "
-        "(`website/data/seattle_weather.csv`); models are trained on 2012–2014 and tested on 2015.")]
+        "(`website/data/seattle_weather.csv`). Run the first cell before the others.")]
     cells.append(nbformat.v4.new_code_cell(SETUP))
     for tag, q_title, description, code in questions:
         cells.append(nbformat.v4.new_markdown_cell(f"## {tag} — {q_title}\n\n{description}"))

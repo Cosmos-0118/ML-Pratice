@@ -104,7 +104,8 @@ function highlight(code) {
 
 const ICON_PLAY = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.8v10.4a.8.8 0 0 0 1.2.7l8.4-5.2a.8.8 0 0 0 0-1.4L5.2 2.1a.8.8 0 0 0-1.2.7z"/></svg>';
 const ICON_CODE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4 1.5 8l4 4M10.5 4l4 4-4 4"/></svg>';
-const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+// Two animation frames, or 100 ms if the tab is in the background (where animation frames pause).
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 100); });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // Smoothly change the height of the box while its content is swapped.
