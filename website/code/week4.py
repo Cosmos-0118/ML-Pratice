@@ -1,58 +1,55 @@
-# Week 4 - a Gaussian HMM written from scratch (scaled forward-backward + Baum-Welch + Viterbi)
-import numpy as np, matplotlib.pyplot as plt
-from beijing_pm25 import load_daily, chrono_split
+# Week 4 - a hidden Markov model written from scratch: wet and dry spells
+import numpy as np
+import matplotlib.pyplot as plt
+from weather import load
 
-d = load_daily(); x = d.log_pm25.values; train, test = chrono_split(d)
+d = load()
+obs = np.digitize(d.precipitation, [0.001, 5.0])        # 0 = dry, 1 = light rain, 2 = heavy rain
+n_train = int((d.date < "2015-01-01").sum())             # learn from 2012-2014 only
 
-def logB(x, mu, sd):                         # emission log-density; a missing day carries no information
-    ll = -0.5 * ((x[:, None] - mu) / sd) ** 2 - np.log(sd * np.sqrt(2 * np.pi))
-    return np.where(np.isnan(x)[:, None], 0.0, ll)
+def forward(obs, A, B, pi):                              # "which regime are we in today?"
+    alpha, c = np.zeros((len(obs), len(pi))), np.zeros(len(obs))
+    for t in range(len(obs)):
+        alpha[t] = (pi if t == 0 else alpha[t - 1] @ A) * B[:, obs[t]]
+        c[t] = alpha[t].sum(); alpha[t] /= c[t]
+    return alpha, c
 
-def forward_backward(lb, A, pi):
-    T, K = lb.shape; B = np.exp(lb - lb.max(1, keepdims=True))
-    al = np.zeros((T, K)); c = np.zeros(T)
-    al[0] = pi * B[0]; c[0] = al[0].sum(); al[0] /= c[0]
-    for t in range(1, T):
-        al[t] = (al[t - 1] @ A) * B[t]; c[t] = al[t].sum(); al[t] /= c[t]
-    be = np.ones((T, K))
-    for t in range(T - 2, -1, -1):
-        be[t] = A @ (B[t + 1] * be[t + 1]) / c[t + 1]
-    ll = np.log(c).sum() + lb.max(1).sum()
-    return al, be, ll
-
-def fit(x, K=3, iters=60, seed=0):
-    rng = np.random.default_rng(seed); v = x[~np.isnan(x)]
-    mu = np.sort(rng.choice(v, K)); sd = np.full(K, v.std()); A = np.full((K, K), 1 / K); pi = np.full(K, 1 / K)
+def baum_welch(obs, K, seed, iters=150):                 # learn A, B, pi from the data alone (EM)
+    rng = np.random.default_rng(seed)
+    A, B, pi = rng.dirichlet(np.ones(K) * 5, K), rng.dirichlet(np.ones(3) * 5, K), np.full(K, 1 / K)
     for _ in range(iters):
-        lb = logB(x, mu, sd); al, be, ll = forward_backward(lb, A, pi)
-        g = al * be; g /= g.sum(1, keepdims=True)
-        B = np.exp(lb - lb.max(1, keepdims=True))
-        xi = al[:-1, :, None] * A[None] * (B[1:] * be[1:])[:, None, :]
+        alpha, c = forward(obs, A, B, pi)
+        beta = np.ones_like(alpha)
+        for t in range(len(obs) - 2, -1, -1):
+            beta[t] = A @ (B[:, obs[t + 1]] * beta[t + 1]) / c[t + 1]
+        gamma = alpha * beta; gamma /= gamma.sum(1, keepdims=True)
+        xi = alpha[:-1, :, None] * A[None] * (B[:, obs[1:]].T * beta[1:])[:, None, :]
         xi /= xi.sum((1, 2), keepdims=True)
-        A = xi.sum(0) / xi.sum((0, 2))[:, None]; pi = g[0]
-        w = g * ~np.isnan(x)[:, None]; xv = np.nan_to_num(x)[:, None]
-        mu = (w * xv).sum(0) / w.sum(0); sd = np.sqrt((w * (xv - mu) ** 2).sum(0) / w.sum(0)) + 1e-3
-    return mu, sd, A, pi, ll
+        A = xi.sum(0) / gamma[:-1].sum(0)[:, None]
+        B = np.array([[gamma[obs == m, k].sum() for m in range(3)] for k in range(K)]) / gamma.sum(0)[:, None]
+        pi = gamma[0]
+    return A, B, pi
 
-def viterbi(lb, A, pi):
-    T, K = lb.shape; dl = np.zeros((T, K)); bp = np.zeros((T, K), int); dl[0] = np.log(pi) + lb[0]
-    for t in range(1, T):
-        s = dl[t - 1][:, None] + np.log(A); bp[t] = s.argmax(0); dl[t] = s.max(0) + lb[t]
-    z = np.zeros(T, int); z[-1] = dl[-1].argmax()
-    for t in range(T - 2, -1, -1): z[t] = bp[t + 1, z[t + 1]]
-    return z
+def viterbi(obs, A, B, pi):                              # the single most likely sequence of regimes
+    delta, back = np.log(pi) + np.log(B[:, obs[0]]), []
+    for o in obs[1:]:
+        s = delta[:, None] + np.log(A)
+        back.append(s.argmax(0)); delta = s.max(0) + np.log(B[:, o])
+    path = [delta.argmax()]
+    for b in back[::-1]: path.append(b[path[-1]])
+    return np.array(path[::-1])
 
-mu, sd, A, pi, ll = fit(x[train], K=3)
-order = np.argsort(mu); mu, sd, A, pi = mu[order], sd[order], A[np.ix_(order, order)], pi[order]
-print("hidden states (daily PM2.5, ug/m3):", np.round(np.exp(mu)).astype(int), " <- clean / moderate / polluted regimes")
-print("transition matrix (rows = from):\n", A.round(2))
-print("expected stay (days):", np.round(1 / (1 - np.diag(A)), 1))
+fits = [baum_welch(obs[:n_train], 2, seed) for seed in range(5)]
+A, B, pi = max(fits, key=lambda m: np.log(forward(obs[:n_train], *m)[1]).sum())   # keep the best start
+wet = int(np.argmin(B[:, 0]))                            # the regime that is rarely dry
+print("transition matrix (row = from):\n", A.round(2))
+print("chance of dry / light / heavy rain in each regime:\n", B.round(2))
+print("average spell length (days):", (1 / (1 - np.diag(A))).round(1))
 
-z = viterbi(logB(x[test], mu, sd), A, pi)
-plt.figure(figsize=(10, 3.2))
-plt.plot(np.exp(x[test]), "k", lw=.8, label="PM2.5")
-for k, col in enumerate(["tab:green", "gold", "tab:red"]):
-    plt.fill_between(range(len(z)), 0, 1, where=z == k, color=col, alpha=.25, transform=plt.gca().get_xaxis_transform())
-plt.yscale("log"); plt.xlabel("day of 2014"); plt.ylabel("PM2.5 (ug/m3)")
-plt.title("Viterbi path on the 2014 test year (green / yellow / red = hidden regime)")
+path = viterbi(obs, A, B, pi)
+days = np.arange(n_train, len(obs))
+fig, ax = plt.subplots(figsize=(9, 3))
+ax.bar(range(len(days)), d.precipitation.values[days], color="k", width=1)
+ax.fill_between(range(len(days)), 0, 1, where=path[days] == wet, color="tab:blue", alpha=.25, transform=ax.get_xaxis_transform())
+ax.set_xlabel("day of 2015"); ax.set_ylabel("precipitation (mm)"); ax.set_title("blue = wet spell found by the model")
 plt.tight_layout(); plt.show()

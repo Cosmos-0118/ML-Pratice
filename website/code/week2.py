@@ -1,25 +1,27 @@
-# Week 2 - linear regression: predict ln PM2.5 from the weather (train 2010-13, test 2014)
-import numpy as np, matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
+# Week 2 - linear regression (tomorrow's temperature) and logistic regression (rain tomorrow)
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score
-from beijing_pm25 import load_daily, design_matrix, chrono_split
+from weather import load, split, FEATURES
 
-d = load_daily(); X = design_matrix(d); y = d.log_pm25
-train, test = chrono_split(d)
-train, test = train & y.notna(), test & y.notna()
+train, test = split(load())              # train on 2012-2014, test on 2015
 
-scaler = StandardScaler().fit(X[train])
-model = LinearRegression().fit(scaler.transform(X[train]), y[train])
-pred = model.predict(scaler.transform(X[test]))
+# --- Regression: least squares with the normal equation w = (X'X)^-1 X'y
+X_tr = np.c_[np.ones(len(train)), train[FEATURES]]
+X_te = np.c_[np.ones(len(test)), test[FEATURES]]
+w = np.linalg.solve(X_tr.T @ X_tr, X_tr.T @ train.temp_tomorrow)
+pred = X_te @ w
+rmse = lambda p: np.sqrt(np.mean((test.temp_tomorrow - p) ** 2))
+print(f"tomorrow's temp_max, error in C:  'same as today' {rmse(test.temp_max):.2f}  |  linear regression {rmse(pred):.2f}")
 
-print("R2 on 2014:", round(r2_score(y[test], pred), 3))
-print("RMSE (ln units):", round(float(np.sqrt(np.mean((y[test] - pred) ** 2))), 3))
+# --- Classification: will it rain tomorrow?
+scaler = StandardScaler().fit(train[FEATURES])
+model = LogisticRegression().fit(scaler.transform(train[FEATURES]), train.rain_tomorrow)
+accuracy = model.score(scaler.transform(test[FEATURES]), test.rain_tomorrow)
+print(f"rain tomorrow: 'always no rain' {1 - test.rain_tomorrow.mean():.3f}  |  'same as today' {(test.rain == test.rain_tomorrow).mean():.3f}  |  logistic regression {accuracy:.3f}")
 
-fig, ax = plt.subplots(1, 2, figsize=(10, 3.6))
-ax[0].scatter(y[test], pred, s=10, alpha=.6); ax[0].plot([2, 6], [2, 6], "r--")
-ax[0].set(xlabel="actual ln PM2.5", ylabel="predicted ln PM2.5", title="2014: predicted vs actual")
-coef = dict(zip(X.columns, model.coef_)); names = sorted(coef, key=coef.get)
-ax[1].barh(names, [coef[n] for n in names], color=["tab:red" if coef[n] > 0 else "tab:blue" for n in names])
-ax[1].set_title("standardised coefficients")
+fig, ax = plt.subplots(figsize=(4.5, 4))
+ax.scatter(test.temp_tomorrow, pred, s=8, alpha=.6); ax.plot([0, 35], [0, 35], "r--")
+ax.set_xlabel("actual temp_max tomorrow (C)"); ax.set_ylabel("predicted"); ax.set_title("linear regression on 2015")
 plt.tight_layout(); plt.show()

@@ -29,10 +29,10 @@ function getPython(status) {
     const py = await loadPyodide({ indexURL: PYODIDE });
     status("Loading numpy, pandas, scikit-learn, matplotlib…");
     await py.loadPackage(["numpy", "pandas", "scipy", "scikit-learn", "matplotlib"]);
-    status("Loading the Beijing PM2.5 data…");
+    status("Loading the Seattle weather data…");
     py.FS.mkdir("data");
-    py.FS.writeFile("beijing_pm25.py", await (await fetch("beijing_pm25.py")).text());
-    py.FS.writeFile("data/beijing_pm25.csv", new Uint8Array(await (await fetch("data/beijing_pm25.csv")).arrayBuffer()));
+    py.FS.writeFile("weather.py", await (await fetch("weather.py")).text());
+    py.FS.writeFile("data/seattle_weather.csv", await (await fetch("data/seattle_weather.csv")).text());
     py.runPython(SETUP);
     return py;
   })().catch(e => { pyReady = null; throw e; });
@@ -40,11 +40,15 @@ function getPython(status) {
 }
 
 document.querySelectorAll(".runner").forEach(box => {
-  const code = box.querySelector("textarea"), original = code.value;
+  const code = box.querySelector("textarea");
+  let original = "";
   const run = box.querySelector(".run"), reset = box.querySelector(".reset");
   const out = box.querySelector(".out"), figs = box.querySelector(".figs"), status = box.querySelector(".status");
   const fit = () => { code.style.height = "auto"; code.style.height = Math.min(code.scrollHeight + 4, 560) + "px"; };
-  code.addEventListener("input", fit); fit();
+  code.addEventListener("input", fit);
+  // The code lives in code/weekN.py, so the page and the file can never drift apart.
+  fetch(code.dataset.src).then(r => r.text()).then(t => { original = t; code.value = t; fit(); })
+    .catch(() => { code.value = "# Could not load " + code.dataset.src; });
   reset.onclick = () => { code.value = original; fit(); };
   run.onclick = async () => {
     run.disabled = true; out.textContent = ""; figs.innerHTML = ""; out.hidden = true;

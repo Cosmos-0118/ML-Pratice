@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Week 5 – Combining models | ML Practice</title>
-<meta name="description" content="Machine-learning practice (21CSC305P) on hourly PM2.5 and weather for Beijing, 2010–2014.">
+<meta name="description" content="Machine-learning practice (21CSC305P) on daily weather in Seattle, 2012–2015.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:,"><script src="theme.js"></script><link rel="stylesheet" href="style.css"></head><body>
 <header class="topbar"><div class="container">
@@ -9,52 +9,24 @@
 <nav class="topnav" aria-label="Main"><a href="index.html">Home</a><a href="week-1.html" aria-current="page">Weeks</a><a href="notes.html">Notes</a><a class="hide-sm" href="https://github.com/Cosmos-0118/ML-Pratice">GitHub ↗</a></nav>
 <button class="icon-btn theme-toggle" type="button" aria-label="Switch between light and dark mode" title="Switch theme"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
 </div></header>
-<div class="hero compact"><div class="container"><span class="eyebrow">Week 5 of 5</span><h1>Combining models</h1><p class="sub">Is a polluted day predictable? Compare a single tree, forests, boosting and stacking.</p></div></div>
+<div class="hero compact"><div class="container"><span class="eyebrow">Week 5 of 5</span><h1>Combining models</h1><p class="sub">Will it rain tomorrow? Compare a single tree, forests, boosting and stacking.</p></div></div>
 <div class="container shell"><nav class="side" aria-label="Sections"><h4>Course</h4><ul><li><a href="index.html"><span class="n">⌂</span>Overview</a></li></ul><hr><h4>Weeks</h4><ul><li><a href="week-1.html"><span class="n">1</span>Week 1</a></li><li><a href="week-2.html"><span class="n">2</span>Week 2</a></li><li><a href="week-3.html"><span class="n">3</span>Week 3</a></li><li><a href="week-4.html"><span class="n">4</span>Week 4</a></li><li><a href="week-5.html" aria-current="page"><span class="n">5</span>Week 5</a></li></ul><hr><ul><li><a href="notes.html"><span class="n">!</span>What did not work</a></li></ul></nav>
-<main class="content"><div class="tasks"><b>Practice tasks covered</b><ul><li>Practice 1 – CART decision tree for polluted-day categorisation</li><li>Practice 2 – ensembles: bagging, random forest, boosting, voting, stacking</li></ul></div><figure><img src="img/ensembles.png" alt="2014 accuracy and AUC for three models with two feature sets"><figcaption>Every model improves when it gets context features (yesterday's weather, last known PM2.5).</figcaption></figure>
-  <table><tr><th>Model (2014)</th><th>Accuracy</th></tr>
-    <tr><td>Single decision tree</td><td>0.72</td></tr><tr><td>Boosting</td><td>0.79</td></tr>
-    <tr><td>Logistic regression</td><td>0.827</td></tr><tr><td>Stacking</td><td>0.830</td></tr></table>
-  <div class="result">Ensembles clearly beat a single tree, and stacking ties a well-tuned logistic regression.</div><h3>Run the code</h3>
-  <p class="lead">This is real Python running in your browser: single tree vs random forest vs boosting vs logistic regression on 2014. Edit it and press Run. The first run takes a little while to load Python.</p>
-  <div class="runner">
-    <div class="runner-head"><span class="dots"><i></i><i></i><i></i></span><span class="fname">week_5.py</span><span class="badge">Python · runs in your browser</span></div>
-    <textarea spellcheck="false" aria-label="Python code for week 5"># Week 5 - single tree vs ensembles vs logistic regression (train 2010-13, test 2014)
-import pandas as pd, matplotlib.pyplot as plt
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, roc_auc_score
-from beijing_pm25 import load_daily, context_features, chrono_split
-
-d = load_daily(); X = context_features(d); y = d.polluted
-ok = y.notna() &amp; X.notna().all(axis=1)
-train, test = chrono_split(d); train, test = train &amp; ok, test &amp; ok
-
-models = {
-    &quot;Single tree (depth 5)&quot;: DecisionTreeClassifier(max_depth=5, random_state=0),
-    &quot;Random forest&quot;:         RandomForestClassifier(200, min_samples_leaf=5, random_state=0),
-    &quot;Gradient boosting&quot;:     HistGradientBoostingClassifier(max_depth=3, learning_rate=.05, max_iter=150, random_state=0),
-    &quot;Logistic regression&quot;:   make_pipeline(StandardScaler(), LogisticRegression(C=.3, max_iter=2000)),
-}
-rows = []
-for name, m in models.items():
-    m.fit(X[train], y[train]); p = m.predict_proba(X[test])[:, 1]
-    rows.append((name, accuracy_score(y[test], p &gt; .5), roc_auc_score(y[test], p)))
-res = pd.DataFrame(rows, columns=[&quot;model&quot;, &quot;accuracy&quot;, &quot;AUC&quot;]).set_index(&quot;model&quot;).round(3)
-print(res)
-
-res.plot.barh(figsize=(8, 3.4)); plt.xlim(.6, 1); plt.title(&quot;Polluted day? 2014 test year&quot;)
-plt.tight_layout(); plt.show()
-</textarea>
-    <div class="bar"><button class="run">▶ Run</button><button class="reset">Reset</button><span class="status"></span></div>
-    <pre class="out" hidden></pre>
-    <div class="figs"></div>
-  </div>
-  <a class="nbl" href="notebooks/Week_05_Combining_Models_Ensembles.html">View the full notebook with all code and outputs →</a>
-<div class="pager"><a class="prev" href="week-4.html"><small>Previous</small><strong>Week 4 · Hidden Markov models</strong></a><a class="next" href="notes.html"><small>Next</small><strong>What did not work</strong></a></div></main></div>
-<footer class="footer"><div class="container"><p>Notebooks, code and data: <a href="https://github.com/Cosmos-0118/ML-Pratice">github.com/Cosmos-0118/ML-Pratice</a></p><p>Data: Liang et al. (2015), Proc. R. Soc. A 471: 20150257, via UCI (CC BY 4.0).</p></div></footer>
+<main class="content"><div class="tasks"><b>Practice tasks covered</b><ul><li>Practice 1 – implement CART to categorise data (rain tomorrow)</li><li>Practice 2 – implement ensemble models (bagging, random forest, boosting, voting, stacking)</li></ul></div>
+<ul><li>A decision tree is written one split at a time from scratch (Gini impurity), then compared with scikit-learn.</li><li>Bagging is written from scratch: 100 trees, each trained on a random re-sample of the days, then a vote.</li></ul>
+<figure><img src="img/tree-depth.png" alt="Tree accuracy on the fitting years and on the validation year for depths 1 to 15"><figcaption>A deeper tree fits the past better and better, but the validation year does not follow: the very simplest tree is as good as any.</figcaption></figure>
+<figure><img src="img/ensembles.png" alt="Bar chart of 2015 accuracy for every model"><figcaption>Averaging many trees helps a lot, but plain logistic regression is as accurate as any ensemble.</figcaption></figure>
+<table><tr><th>Model</th><th>Accuracy on 2015</th><th>Log-loss</th></tr><tr><td>Logistic regression</td><td>72.8%</td><td>0.559</td></tr><tr><td>Voting</td><td>72.5%</td><td>0.541</td></tr><tr><td>Random forest</td><td>71.7%</td><td>0.547</td></tr><tr><td>AdaBoost / gradient boosting / stacking</td><td>70.9%</td><td>0.55–0.57</td></tr><tr><td>Bagging</td><td>70.6%</td><td>0.550</td></tr><tr><td>Single deep tree</td><td>68.7%</td><td>2.816</td></tr></table>
+<div class="result honest"><b>Ensembles fix a deep tree</b> (log-loss 2.8 down to about 0.55, because a lone deep tree is wildly over-confident), but none clearly beats logistic regression. With 364 test days, one accuracy figure is uncertain by about ±2.4 points.</div>
+<h3>Run the code</h3>
+<p class="lead">A single tree, three ensembles and a logistic regression, compared on the same split. This is real Python running in your browser. Edit it and press Run. The first run takes a little while to load Python.</p>
+<div class="runner">
+<div class="runner-head"><span class="dots"><i></i><i></i><i></i></span><span class="fname">week_5.py</span><span class="badge">Python · runs in your browser</span></div>
+<textarea spellcheck="false" aria-label="Python code for week 5" data-src="code/week5.py"></textarea>
+<div class="bar"><button class="run">▶ Run</button><button class="reset">Reset</button><span class="status"></span></div>
+<pre class="out" hidden></pre>
+<div class="figs"></div>
+</div>
+<a class="nbl" href="notebooks/Week_05_Combining_Models_Ensembles.html">View the full notebook with all code and outputs →</a><div class="pager"><a class="prev" href="week-4.html"><small>Previous</small><strong>Week 4 · Hidden Markov models</strong></a><a class="next" href="notes.html"><small>Next</small><strong>What did not work</strong></a></div></main></div>
+<footer class="footer"><div class="container"><p>Notebooks, code and data: <a href="https://github.com/Cosmos-0118/ML-Pratice">github.com/Cosmos-0118/ML-Pratice</a></p><p>Data: NOAA via vega-datasets (U.S. Government work, public domain).</p></div></footer>
 <script src="run.js"></script>
 </body></html>

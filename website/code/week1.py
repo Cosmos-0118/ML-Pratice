@@ -1,17 +1,23 @@
-# Week 1 - load the data, summarise it, look at its shape
+# Week 1 - load the data, summarise it, look at the seasons
+import numpy as np
 import matplotlib.pyplot as plt
-from beijing_pm25 import load_hourly, load_daily
+from weather import load
 
-hourly = load_hourly()
-print("hourly rows:", len(hourly), "| hours with no PM2.5 reading:", int(hourly.pm25.isna().sum()))
-print(hourly.describe().round(1).T[["mean", "std", "min", "50%", "max"]], "\n")
+d = load()
+print("days:", len(d), "| first:", d.date.min().date(), "| last:", d.date.max().date())
+print("missing values:", int(d[["precipitation", "temp_max", "temp_min", "wind"]].isna().sum().sum()))
+print(d[["precipitation", "temp_max", "temp_min", "wind"]].describe().round(1), "\n")
 
-daily = load_daily()
-print("days with a daily mean:", int(daily.pm25.notna().sum()))
-print("share of polluted days (> 75 ug/m3):", round(daily.polluted.mean(), 3))
-print("skew of PM2.5:", round(daily.pm25.skew(), 2), "-> skew of ln PM2.5:", round(daily.log_pm25.skew(), 2))
+print("skew of precipitation:", round(d.precipitation.skew(), 2), "(very skewed: mostly dry days, a few very wet ones)")
 
-fig, ax = plt.subplots(1, 2, figsize=(9, 3.2))
-daily.pm25.hist(bins=50, ax=ax[0], color="tab:red");      ax[0].set_title("daily PM2.5 (ug/m3): skewed")
-daily.log_pm25.hist(bins=50, ax=ax[1], color="tab:blue"); ax[1].set_title("ln PM2.5: close to normal")
+# Bayes' rule: how much does rain today change the chance of rain tomorrow?
+t = d.dropna()
+print("P(rain tomorrow)              =", round(t.rain_tomorrow.mean(), 2))
+print("P(rain tomorrow | rain today) =", round(t[t.rain == 1].rain_tomorrow.mean(), 2))
+print("P(rain tomorrow | dry today)  =", round(t[t.rain == 0].rain_tomorrow.mean(), 2))
+
+by_month = d.groupby(d.date.dt.month).agg(temp_max=("temp_max", "mean"), rain_share=("rain", "mean"))
+fig, ax = plt.subplots(1, 2, figsize=(9, 3))
+by_month.temp_max.plot.bar(ax=ax[0], color="tab:orange", title="average temp_max (C) by month")
+by_month.rain_share.plot.bar(ax=ax[1], color="tab:blue", title="share of rainy days by month")
 plt.tight_layout(); plt.show()

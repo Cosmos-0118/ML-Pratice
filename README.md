@@ -1,44 +1,41 @@
 # Machine Learning Practice (21CSC305P)
 
-One Jupyter notebook per week/unit of the **21CSC305P – Machine Learning** syllabus. Each notebook has
-**Part A** (theory in code: small experiments that illustrate the unit's topics) and **Part B** (the unit's *Practice* tasks, implemented and evaluated).
-All notebooks are saved **with their outputs and graphs**, so they can be read directly on GitHub, and they re-run top-to-bottom.
+One Jupyter notebook per week of the **21CSC305P – Machine Learning** syllabus, all on one small dataset.
+Each notebook is short, plain Python, and is saved **with its outputs and graphs**, so it can be read directly on GitHub.
+It also re-runs top to bottom.
 
-## One dataset for the whole course: Beijing PM2.5 air quality
-Hourly PM2.5 (µg/m³) plus weather — dew point, temperature, pressure, wind direction, cumulated wind speed, snow / rain hours — for **Beijing, 1 Jan 2010 – 31 Dec 2014** (43,824 hours, 2,067 missing PM2.5 readings).
+## The dataset: daily weather in Seattle, 2012–2015
+One row per day, 1,461 days, no missing values: precipitation (mm), highest and lowest temperature (°C), wind speed, and a weather label (sun, rain, drizzle, fog, snow).
 
-* Source: UCI Machine Learning Repository, [*Beijing PM2.5 Data*](https://archive.ics.uci.edu/dataset/381/beijing+pm2+5+data) (licence **CC BY 4.0**).
-  Liang, X. et al. (2015), *Assessing Beijing's PM2.5 pollution: severity, weather impact, APEC and winter heating*, Proc. R. Soc. A 471: 20150257.
-  PM2.5 from the US Embassy in Beijing, weather from Beijing Capital International Airport.
-* The CSV is kept in [`data/beijing_pm25.csv`](data/beijing_pm25.csv) (a copy of the UCI file, taken from the mirror <https://github.com/jbrownlee/Datasets>); [`beijing_pm25.py`](beijing_pm25.py) loads it (and re-downloads it if it is missing) and builds the daily table and labels used by every notebook.
-* Daily table: 1,826 days (1,753 with ≥ 12 valid PM2.5 hours). Labels: 4-class air quality (Good ≤ 35 · Moderate ≤ 75 · Unhealthy ≤ 150 · Very unhealthy > 150 µg/m³) and **polluted day** = PM2.5 > 75 µg/m³ (52.6 % of days).
-* Evaluation is **chronological**: train on 2010–2013, test on 2014, cross-validation with expanding-window time-series splits.
+* Source: NOAA National Climatic Data Center, as packaged in [vega-datasets](https://github.com/vega/vega-datasets) (`seattle-weather.csv`). U.S. Government work, public domain.
+* The CSV is in [`data/seattle_weather.csv`](data/seattle_weather.csv). [`weather.py`](weather.py) loads it and adds a few columns (`rain`, `rain_tomorrow`, `temp_tomorrow`, month as a circle).
+* The `weather` label was built by the dataset's authors from the other columns, so it is **never used as an input**, only to check clusters in week 3.
+* Evaluation never looks at the future: models are trained on **2012–2014** and tested on **2015**, and every result is compared with a simple baseline ("tomorrow = today").
 
-| Week | Notebook | Unit | Practice tasks covered — on the Beijing data |
+| Week | Notebook | Unit | Practice tasks covered |
 |---|---|---|---|
-| 1 | [`Week_01_Introduction_to_ML.ipynb`](Week_01_Introduction_to_ML.ipynb) | Introduction | 1. Import, load and view the dataset · 2. Summary & statistics (missing data, skew, seasonality, daily table) |
-| 2 | [`Week_02_Linear_Models.ipynb`](Week_02_Linear_Models.ipynb) | Linear models for regression & classification | 1. Linear regression: predict ln PM2.5 from weather · 2. Bayesian logistic regression and SVM: polluted day? |
-| 3 | [`Week_03_Clustering_EM_PCA.ipynb`](Week_03_Clustering_EM_PCA.ipynb) | Mixture models and EM | 1. K-means, mixtures of Gaussians, hierarchical clustering → weather regimes · 2. PCA (weather axes, daily temperature curves) |
-| 4 | [`Week_04_Hidden_Markov_Models.ipynb`](Week_04_Hidden_Markov_Models.ipynb) | Hidden Markov models | 1. HMM on daily air-quality classes and on daily / hourly ln PM2.5: hidden pollution regimes and forecasts |
-| 5 | [`Week_05_Combining_Models_Ensembles.ipynb`](Week_05_Combining_Models_Ensembles.ipynb) | Combining models | 1. CART for polluted-day categorisation · 2. Ensembles (bagging, forests, boosting, voting, stacking) |
+| 1 | [`Week_01_Introduction_to_ML.ipynb`](Week_01_Introduction_to_ML.ipynb) | Introduction | Load and view the data · summary and statistics (missing values, skew, seasons, correlation), Bayes' rule, over-fitting |
+| 2 | [`Week_02_Linear_Models.ipynb`](Week_02_Linear_Models.ipynb) | Linear models for regression and classification | Linear regression: tomorrow's temperature · Bayesian logistic regression and SVM: will it rain tomorrow? |
+| 3 | [`Week_03_Clustering_EM_PCA.ipynb`](Week_03_Clustering_EM_PCA.ipynb) | Mixture models and EM | K-means, Gaussian mixtures (EM), hierarchical clustering → weather types · PCA |
+| 4 | [`Week_04_Hidden_Markov_Models.ipynb`](Week_04_Hidden_Markov_Models.ipynb) | Hidden Markov models | HMM on the daily rain sequence: hidden wet and dry spells, forecasting |
+| 5 | [`Week_05_Combining_Models_Ensembles.ipynb`](Week_05_Combining_Models_Ensembles.ipynb) | Combining models | CART · bagging, random forest, boosting, voting, stacking |
 
-## Highlights (implemented from scratch with NumPy, then validated against scikit-learn / brute force)
-* Week 1 – Bayes' rule on a medical test and on pollution data, PM2.5 is log-normal, over-fitting on a synthetic curve and on the annual temperature cycle; reusable `summarize()` EDA function.
-* Week 2 – ML / ridge / robust / Bayesian linear regression (R² ≈ 0.64 on the held-out year from weather alone), **Bayesian logistic regression (Laplace approximation)**, kernel trick, SVM tuning, kernelised logistic regression.
-* Week 3 – **K-means (k-means++)**, **EM for Gaussian mixtures**, hierarchical clustering → four interpretable weather regimes (BIC picks k = 4; the cold, calm regime has 76 % polluted days, the cold, dry, windy one 23 %), **PCA (eigen + SVD)**, factor analysis.
-* Week 4 – **HMM** with scaled forward–backward, **Baum–Welch**, **Viterbi**, h-step prediction, **Markov-switching AR**; hidden regimes validated against wind (never used in fitting); **Kalman filter / RTS smoother** with missing data and weather inputs.
-* Week 5 – Bayesian model averaging, bagging, **AdaBoost**, **gradient boosting**, GAM, **CART (Gini/entropy, pruning)**, bagging/OOB, voting, stacking, consensus clustering.
+## What is written from scratch (NumPy), then checked against scikit-learn or brute force
+* Week 2 – least squares (normal equation), Bayesian linear regression, Bayesian logistic regression (Laplace approximation).
+* Week 3 – K-means and EM for a Gaussian mixture.
+* Week 4 – HMM: forward algorithm, Baum–Welch, Viterbi (forward checked against brute force).
+* Week 5 – one decision-tree split (Gini) and bagging.
 
-The notebooks report results as they came out, and where a first attempt was weak the models were improved rather than the evaluation relaxed (always chronological split, hyper-parameters chosen on 2010–2013 only):
-* **Ensembles vs logistic regression (Week 5)** – tuning + context features lift every model (2014 accuracy: logistic regression 0.77 → 0.83, boosting 0.73 → 0.79); stacking now ties the tuned logistic regression, which still is not beaten even with 33,000 training hours — a property of this nearly additive problem, shown with a learning curve.
-* **HMM forecasting (Week 4)** – a plain HMM loses to AR(1) for the next hours, so a *Markov-switching AR* (HMM with autoregressive emissions) is added: ≈ 7 % lower MAE/CRPS than AR(1) at 1 h, equal beyond ~12 h; best daily predictive density, small log-loss gain (accuracy within noise) for tomorrow's air-quality class.
-* **Kalman gap-filling (Week 4)** – a latent AR(1) is no better than interpolation, but with the (always available) weather as known inputs the error for 24–48 h gaps falls by 20–28 %.
+## Results, as they came out
+* Rain tomorrow: logistic regression 73.1% against 70.3% for "tomorrow = today". Trees, boosting, stacking and SVMs do not clearly beat it.
+* The HMM finds clear wet and dry spells (about eight days each, matching wind and temperature it never saw) but does not predict tomorrow better than "tomorrow = today".
+* Clustering gives readable weather types, but there is no sharp number of clusters.
+* The 2015 test year has 364 days, so one accuracy is uncertain by about ±2.4 points.
 
-A few theory demos deliberately use small **synthetic** data where the truth is known (bagging on a sine curve, K-means vs. GMM on elongated clusters, PPCA dimension selection, the kernel-trick circles, HMM brute-force validation).
-
-## Website (Vercel)
-[`website/`](website/) is a small static site (home page with a card per week, one page per week, plus a "what did not work" page) that summarises the results with the key figures. Each week page also has an **editable, runnable code cell** (Python running in the browser via [Pyodide](https://pyodide.org); the snippets are in `website/code/`) and a link to the full notebook exported as HTML (`website/notebooks/`). No build step and no server.
-To deploy: import this repo in Vercel and set **Root Directory** to `website` (Framework Preset: *Other*, leave build/output empty).
+## Website
+[`website/`](website/) is a small static site: a home page, one page per week with the key figures and an **editable, runnable code cell** (Python in the browser via [Pyodide](https://pyodide.org); the code is in `website/code/`), a "what did not work" page, light and dark mode, and each notebook exported as HTML (`website/notebooks/`). No build step and no server.
+To deploy on Vercel: import this repo and set **Root Directory** to `website` (Framework Preset: *Other*, leave build/output empty).
+`website/weather.py` and `website/data/` are copies of the files in the repo root, so keep them in sync if you change them.
 
 ## Run it
 ```bash
