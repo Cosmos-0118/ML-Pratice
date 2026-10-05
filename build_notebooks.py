@@ -1,4 +1,4 @@
-"""Builds the five Week_XX notebooks from the question files in website/code/ and runs them.
+"""Builds the five Week_XX notebooks (one per unit, practice questions only) from website/code/ and runs them.
 
 The website shows the same code (website/code/weekN.py), so the notebooks and the site can never disagree.
 Usage:  pip install nbformat nbclient ipykernel   then   python build_notebooks.py
@@ -11,11 +11,11 @@ from nbclient import NotebookClient
 
 ROOT = Path(__file__).parent
 WEEKS = {
-    1: ("Week_01_Introduction_to_ML", "Introduction to Machine Learning"),
-    2: ("Week_02_Linear_Models", "Linear Models for Regression and Classification"),
-    3: ("Week_03_Clustering_EM_PCA", "Mixture Models, EM, Clustering and PCA"),
-    4: ("Week_04_Hidden_Markov_Models", "Hidden Markov Models"),
-    5: ("Week_05_Combining_Models_Ensembles", "Combining Models: Boosting, CART and Ensembles"),
+    1: ("Week_01_Introduction_to_ML", "Introduction"),
+    2: ("Week_02_Linear_Models", "Linear models for regression"),
+    3: ("Week_03_Clustering_EM_PCA", "Mixture models and EM"),
+    4: ("Week_04_Hidden_Markov_Models", "Hidden Markov models"),
+    5: ("Week_05_Combining_Models_Ensembles", "Combining models"),
 }
 SETUP = '''%config InlineBackend.figure_format = "svg"
 import sys
@@ -25,10 +25,8 @@ use_style()'''
 
 
 def parse(path):
-    """Returns the syllabus line and a list of (tag, title, description, code)."""
-    text = path.read_text()
-    head, *blocks = re.split(r"(?m)^# %% ", text)
-    syllabus = " ".join(l[2:].strip() for l in head.splitlines() if l.startswith("#:"))
+    """Returns a list of (tag, title, description, code)."""
+    _, *blocks = re.split(r"(?m)^# %% ", path.read_text())
     questions = []
     for block in blocks:
         first, _, body = block.partition("\n")
@@ -37,13 +35,13 @@ def parse(path):
         description = " ".join(l[2:].strip() for l in lines if l.startswith("#:"))
         code = "\n".join(l for l in lines if not l.startswith("#:")).strip()
         questions.append((tag, title, description, code))
-    return syllabus, questions
+    return questions
 
 
 for number, (name, title) in WEEKS.items():
-    syllabus, questions = parse(ROOT / "website" / "code" / f"week{number}.py")
+    questions = parse(ROOT / "website" / "code" / f"week{number}.py")
     cells = [nbformat.v4.new_markdown_cell(
-        f"# Week {number} — {title}\n\n**Syllabus topics:** {syllabus}\n\n"
+        f"# Unit {number} — {title}\n\nThe practice questions of this unit (21CSC305P). "
         "Every question below is self-contained: run any cell on its own. All questions use the Seattle daily weather data "
         "(`website/data/seattle_weather.csv`); models are trained on 2012–2014 and tested on 2015.")]
     cells.append(nbformat.v4.new_code_cell(SETUP))
