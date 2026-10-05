@@ -26,10 +26,14 @@ Hourly PM2.5 (µg/m³) plus weather — dew point, temperature, pressure, wind d
 * Week 1 – Bayes' rule on a medical test and on pollution data, PM2.5 is log-normal, over-fitting on a synthetic curve and on the annual temperature cycle; reusable `summarize()` EDA function.
 * Week 2 – ML / ridge / robust / Bayesian linear regression (R² ≈ 0.64 on the held-out year from weather alone), **Bayesian logistic regression (Laplace approximation)**, kernel trick, SVM tuning, kernelised logistic regression.
 * Week 3 – **K-means (k-means++)**, **EM for Gaussian mixtures**, hierarchical clustering → four interpretable weather regimes (BIC picks k = 4; the cold, calm regime has 76 % polluted days, the cold, dry, windy one 23 %), **PCA (eigen + SVD)**, factor analysis.
-* Week 4 – **HMM** with scaled forward–backward, **Baum–Welch**, **Viterbi**, h-step prediction; hidden regimes validated against wind (never used in fitting); **Kalman filter / RTS smoother** with missing data.
+* Week 4 – **HMM** with scaled forward–backward, **Baum–Welch**, **Viterbi**, h-step prediction, **Markov-switching AR**; hidden regimes validated against wind (never used in fitting); **Kalman filter / RTS smoother** with missing data and weather inputs.
 * Week 5 – Bayesian model averaging, bagging, **AdaBoost**, **gradient boosting**, GAM, **CART (Gini/entropy, pruning)**, bagging/OOB, voting, stacking, consensus clustering.
 
-The notebooks report results as they came out, including the unflattering ones — e.g. tree ensembles do not beat plain logistic regression on this task, an HMM is no better than a Markov chain for tomorrow's air-quality class and loses to AR(1) for next-hour forecasts, and Kalman gap-filling ≈ linear interpolation.
+The notebooks report results as they came out, and where a first attempt was weak the models were improved rather than the evaluation relaxed (always chronological split, hyper-parameters chosen on 2010–2013 only):
+* **Ensembles vs logistic regression (Week 5)** – tuning + context features lift every model (2014 accuracy: logistic regression 0.77 → 0.83, boosting 0.73 → 0.79); stacking now ties the tuned logistic regression, which still is not beaten even with 33,000 training hours — a property of this nearly additive problem, shown with a learning curve.
+* **HMM forecasting (Week 4)** – a plain HMM loses to AR(1) for the next hours, so a *Markov-switching AR* (HMM with autoregressive emissions) is added: ≈ 7 % lower MAE/CRPS than AR(1) at 1 h, equal beyond ~12 h; best daily predictive density, small log-loss gain (accuracy within noise) for tomorrow's air-quality class.
+* **Kalman gap-filling (Week 4)** – a latent AR(1) is no better than interpolation, but with the (always available) weather as known inputs the error for 24–48 h gaps falls by 20–28 %.
+
 A few theory demos deliberately use small **synthetic** data where the truth is known (bagging on a sine curve, K-means vs. GMM on elongated clusters, PPCA dimension selection, the kernel-trick circles, HMM brute-force validation).
 
 ## Run it

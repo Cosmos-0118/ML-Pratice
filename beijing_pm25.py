@@ -69,6 +69,22 @@ def design_matrix(d, with_season=True):
     return X
 
 
+def context_features(d):
+    """`design_matrix` plus information that is already known when the day is being classified:
+    humidity spread, wind x direction interactions, yesterday's weather, pressure tendency, 3-day calm fraction and the
+    last observed ln PM2.5 (persistence, up to 3 days back).  Only past values are used, so there is no look-ahead."""
+    X = design_matrix(d)
+    X["spread"] = d["temp"] - d["dew"]
+    for w in ["NE", "NW", "SE"]: X[f"wind_x_{w}"] = d["log_wind"] * (d["wind_dir"] == w)
+    X["spread_x_wind"] = X["spread"] * d["log_wind"]
+    for c in ["dew", "temp", "pres", "log_wind"]: X[f"{c}_prev"] = d[c].shift(1)
+    X["pres_change"] = d["pres"].diff()
+    X["calm_prev"] = d["calm_frac"].shift(1)
+    X["calm_3d"] = d["calm_frac"].rolling(3).mean()
+    X["log_pm_prev"] = d["log_pm25"].shift(1).fillna(d["log_pm25"].shift(2)).fillna(d["log_pm25"].shift(3))
+    return X
+
+
 def chrono_split(d, test_year=2014):
     """Train on 2010-2013, test on 2014 (no look-ahead)."""
     return d.index.year < test_year, d.index.year >= test_year
