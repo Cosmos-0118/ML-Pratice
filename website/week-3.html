@@ -2,10 +2,44 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Week 3 – Clustering, mixtures and PCA | ML Practice</title>
 <meta name="description" content="Machine-learning practice (21CSC305P) on hourly PM2.5 and weather for Beijing, 2010–2014.">
-<link rel="stylesheet" href="style.css"></head><body>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body>
 <header><div class="wrap"><span class="tag">Week 3</span><h1>Clustering, mixtures and PCA</h1><p>Find weather regimes without using any pollution labels.</p></div></header>
 <nav><div class="wrap"><a href="index.html">Home</a><a href="week-1.html">Week 1</a><a href="week-2.html">Week 2</a><a href="week-3.html" class=on>Week 3</a><a href="week-4.html">Week 4</a><a href="week-5.html">Week 5</a><a href="notes.html">Notes</a></div></nav>
 <main class="wrap"><section><div class="tasks"><b>Practice tasks covered</b><ul><li>Practice 1 – K-means, Gaussian mixtures (EM) and hierarchical clustering into weather regimes</li><li>Practice 2 – PCA on the weather and on daily temperature curves</li></ul></div><figure><img src="img/regimes.png" alt="K-means weather regimes in PCA space and silhouette plot"><figcaption>K-means with k = 4 (chosen with BIC) groups days into four weather regimes.</figcaption></figure>
-  <div class="result">The regimes were found from weather only, yet they separate pollution: the <b>cold, calm</b> regime has <b>76%</b> polluted days, the <b>cold, dry, windy</b> one only <b>23%</b>.</div></section><div class="pager"><span><a href="week-2.html">← Week 2</a></span><span><a href="week-4.html">Week 4 →</a></span></div></main>
+  <div class="result">The regimes were found from weather only, yet they separate pollution: the <b>cold, calm</b> regime has <b>76%</b> polluted days, the <b>cold, dry, windy</b> one only <b>23%</b>.</div><h3>Run the code</h3>
+  <p class="lead">This is real Python running in your browser: K-means weather regimes, and how polluted each regime is. Edit it and press Run. The first run takes a little while to load Python.</p>
+  <div class="runner">
+    <textarea spellcheck="false" aria-label="Python code for week 3"># Week 3 - K-means weather regimes (no pollution labels used) + PCA view
+import pandas as pd, matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from beijing_pm25 import load_daily
+
+d = load_daily()
+cols = [&quot;dew&quot;, &quot;temp&quot;, &quot;pres&quot;, &quot;log_wind&quot;, &quot;calm_frac&quot;]
+Z = StandardScaler().fit_transform(d[cols])
+
+km = KMeans(n_clusters=4, n_init=10, random_state=0).fit(Z)
+d[&quot;regime&quot;] = km.labels_
+summary = d.groupby(&quot;regime&quot;).agg(days=(&quot;temp&quot;, &quot;size&quot;), temp=(&quot;temp&quot;, &quot;mean&quot;), dew=(&quot;dew&quot;, &quot;mean&quot;),
+                                  log_wind=(&quot;log_wind&quot;, &quot;mean&quot;), calm=(&quot;calm_frac&quot;, &quot;mean&quot;),
+                                  polluted=(&quot;polluted&quot;, &quot;mean&quot;)).round(2)
+print(summary.sort_values(&quot;polluted&quot;))
+print(&quot;\nThe regimes were found from weather only - &#x27;polluted&#x27; was never used for clustering.&quot;)
+
+P = PCA(2).fit_transform(Z)
+plt.figure(figsize=(5.5, 4))
+plt.scatter(P[:, 0], P[:, 1], c=km.labels_, cmap=&quot;tab10&quot;, s=8, alpha=.7)
+plt.xlabel(&quot;PC1&quot;); plt.ylabel(&quot;PC2&quot;); plt.title(&quot;K-means (k=4) in PCA space&quot;)
+plt.tight_layout(); plt.show()
+</textarea>
+    <div class="bar"><button class="run">▶ Run</button><button class="reset">Reset</button><span class="status"></span></div>
+    <pre class="out" hidden></pre>
+    <div class="figs"></div>
+  </div>
+  <a class="nbl" href="notebooks/Week_03_Clustering_EM_PCA.html">View the full notebook with all code and outputs →</a>
+</section><div class="pager"><span><a href="week-2.html">← Week 2</a></span><span><a href="week-4.html">Week 4 →</a></span></div></main>
 <footer><div class="wrap" style="padding:0">Notebooks, code and data: <a href="https://github.com/Cosmos-0118/ML-Pratice">github.com/Cosmos-0118/ML-Pratice</a>. Data: Liang et al. (2015), Proc. R. Soc. A 471: 20150257, via UCI (CC BY 4.0).</div></footer>
+<script src="run.js"></script>
 </body></html>

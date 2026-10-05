@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Week 4 – Hidden Markov models | ML Practice</title>
 <meta name="description" content="Machine-learning practice (21CSC305P) on hourly PM2.5 and weather for Beijing, 2010–2014.">
-<link rel="stylesheet" href="style.css"></head><body>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body>
 <header><div class="wrap"><span class="tag">Week 4</span><h1>Hidden Markov models</h1><p>Hidden pollution regimes, short-term forecasts, and filling in missing hours.</p></div></header>
 <nav><div class="wrap"><a href="index.html">Home</a><a href="week-1.html">Week 1</a><a href="week-2.html">Week 2</a><a href="week-3.html">Week 3</a><a href="week-4.html" class=on>Week 4</a><a href="week-5.html">Week 5</a><a href="notes.html">Notes</a></div></nav>
 <main class="wrap"><section><div class="tasks"><b>Practice tasks covered</b><ul><li>Practice 1 – HMM on daily air-quality classes and on daily / hourly ln PM2.5: hidden regimes and forecasts</li><li>Extra – Markov-switching AR and a Kalman filter with weather inputs</li></ul></div><h3>Forecasting the next hours</h3>
@@ -13,6 +13,74 @@
   <table><tr><th>Gap length</th><th>Kalman + weather vs. interpolation</th></tr>
     <tr><td>12 hours</td><td>about 10% lower error</td></tr>
     <tr><td>24 hours</td><td>about 20% lower error</td></tr>
-    <tr><td>48 hours</td><td>about 28% lower error</td></tr></table></section><div class="pager"><span><a href="week-3.html">← Week 3</a></span><span><a href="week-5.html">Week 5 →</a></span></div></main>
+    <tr><td>48 hours</td><td>about 28% lower error</td></tr></table><h3>Run the code</h3>
+  <p class="lead">This is real Python running in your browser: a Gaussian HMM written from scratch (forward-backward, Baum-Welch, Viterbi) on daily ln PM2.5. Edit it and press Run. The first run takes a little while to load Python.</p>
+  <div class="runner">
+    <textarea spellcheck="false" aria-label="Python code for week 4"># Week 4 - a Gaussian HMM written from scratch (scaled forward-backward + Baum-Welch + Viterbi)
+import numpy as np, matplotlib.pyplot as plt
+from beijing_pm25 import load_daily, chrono_split
+
+d = load_daily(); x = d.log_pm25.values; train, test = chrono_split(d)
+
+def logB(x, mu, sd):                         # emission log-density; a missing day carries no information
+    ll = -0.5 * ((x[:, None] - mu) / sd) ** 2 - np.log(sd * np.sqrt(2 * np.pi))
+    return np.where(np.isnan(x)[:, None], 0.0, ll)
+
+def forward_backward(lb, A, pi):
+    T, K = lb.shape; B = np.exp(lb - lb.max(1, keepdims=True))
+    al = np.zeros((T, K)); c = np.zeros(T)
+    al[0] = pi * B[0]; c[0] = al[0].sum(); al[0] /= c[0]
+    for t in range(1, T):
+        al[t] = (al[t - 1] @ A) * B[t]; c[t] = al[t].sum(); al[t] /= c[t]
+    be = np.ones((T, K))
+    for t in range(T - 2, -1, -1):
+        be[t] = A @ (B[t + 1] * be[t + 1]) / c[t + 1]
+    ll = np.log(c).sum() + lb.max(1).sum()
+    return al, be, ll
+
+def fit(x, K=3, iters=60, seed=0):
+    rng = np.random.default_rng(seed); v = x[~np.isnan(x)]
+    mu = np.sort(rng.choice(v, K)); sd = np.full(K, v.std()); A = np.full((K, K), 1 / K); pi = np.full(K, 1 / K)
+    for _ in range(iters):
+        lb = logB(x, mu, sd); al, be, ll = forward_backward(lb, A, pi)
+        g = al * be; g /= g.sum(1, keepdims=True)
+        B = np.exp(lb - lb.max(1, keepdims=True))
+        xi = al[:-1, :, None] * A[None] * (B[1:] * be[1:])[:, None, :]
+        xi /= xi.sum((1, 2), keepdims=True)
+        A = xi.sum(0) / xi.sum((0, 2))[:, None]; pi = g[0]
+        w = g * ~np.isnan(x)[:, None]; xv = np.nan_to_num(x)[:, None]
+        mu = (w * xv).sum(0) / w.sum(0); sd = np.sqrt((w * (xv - mu) ** 2).sum(0) / w.sum(0)) + 1e-3
+    return mu, sd, A, pi, ll
+
+def viterbi(lb, A, pi):
+    T, K = lb.shape; dl = np.zeros((T, K)); bp = np.zeros((T, K), int); dl[0] = np.log(pi) + lb[0]
+    for t in range(1, T):
+        s = dl[t - 1][:, None] + np.log(A); bp[t] = s.argmax(0); dl[t] = s.max(0) + lb[t]
+    z = np.zeros(T, int); z[-1] = dl[-1].argmax()
+    for t in range(T - 2, -1, -1): z[t] = bp[t + 1, z[t + 1]]
+    return z
+
+mu, sd, A, pi, ll = fit(x[train], K=3)
+order = np.argsort(mu); mu, sd, A, pi = mu[order], sd[order], A[np.ix_(order, order)], pi[order]
+print(&quot;hidden states (daily PM2.5, ug/m3):&quot;, np.round(np.exp(mu)).astype(int), &quot; &lt;- clean / moderate / polluted regimes&quot;)
+print(&quot;transition matrix (rows = from):\n&quot;, A.round(2))
+print(&quot;expected stay (days):&quot;, np.round(1 / (1 - np.diag(A)), 1))
+
+z = viterbi(logB(x[test], mu, sd), A, pi)
+plt.figure(figsize=(10, 3.2))
+plt.plot(np.exp(x[test]), &quot;k&quot;, lw=.8, label=&quot;PM2.5&quot;)
+for k, col in enumerate([&quot;tab:green&quot;, &quot;gold&quot;, &quot;tab:red&quot;]):
+    plt.fill_between(range(len(z)), 0, 1, where=z == k, color=col, alpha=.25, transform=plt.gca().get_xaxis_transform())
+plt.yscale(&quot;log&quot;); plt.xlabel(&quot;day of 2014&quot;); plt.ylabel(&quot;PM2.5 (ug/m3)&quot;)
+plt.title(&quot;Viterbi path on the 2014 test year (green / yellow / red = hidden regime)&quot;)
+plt.tight_layout(); plt.show()
+</textarea>
+    <div class="bar"><button class="run">▶ Run</button><button class="reset">Reset</button><span class="status"></span></div>
+    <pre class="out" hidden></pre>
+    <div class="figs"></div>
+  </div>
+  <a class="nbl" href="notebooks/Week_04_Hidden_Markov_Models.html">View the full notebook with all code and outputs →</a>
+</section><div class="pager"><span><a href="week-3.html">← Week 3</a></span><span><a href="week-5.html">Week 5 →</a></span></div></main>
 <footer><div class="wrap" style="padding:0">Notebooks, code and data: <a href="https://github.com/Cosmos-0118/ML-Pratice">github.com/Cosmos-0118/ML-Pratice</a>. Data: Liang et al. (2015), Proc. R. Soc. A 471: 20150257, via UCI (CC BY 4.0).</div></footer>
+<script src="run.js"></script>
 </body></html>
