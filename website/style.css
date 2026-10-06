@@ -147,8 +147,8 @@ button { font: inherit; color: inherit; }
 .q[hidden] { display: none; }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
 .q-tag { margin: 0; font: 600 12.5px/1 var(--mono); color: var(--accent); letter-spacing: .04em; text-transform: uppercase; }
-.q-title { margin: 10px 0 10px; font-size: clamp(24px, 3vw, 34px); line-height: 1.18; letter-spacing: -.025em; font-weight: 700; max-width: 34ch; }
-.q-desc { margin: 0 0 26px; color: var(--muted); max-width: 78ch; }
+.q-title { margin: 10px 0 10px; font-size: clamp(24px, 3vw, 34px); line-height: 1.18; letter-spacing: -.025em; font-weight: 700; }
+.q-desc { margin: 0 0 26px; color: var(--muted); }
 
 /* The panel: code, the running animation, and the output all live in the same box */
 .panel { position: relative; border-radius: 18px; isolation: isolate; }

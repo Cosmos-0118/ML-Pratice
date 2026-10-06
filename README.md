@@ -42,5 +42,7 @@ python build_notebooks.py                      # rebuilds all five notebooks fro
 ```
 To deploy on Vercel: import this repo and set **Root Directory** to `website` (Framework Preset: *Other*, leave build/output empty).
 
+Website regression tests (Node.js 22.13+ or 24+): `npm ci && npm test`. These check output formatting and Run button behaviour; Node.js is only needed for tests.
+
 ## Adding or changing a question
 Edit the block in `website/code/weekN.py` (N = unit number). A block starts with `# %% Tag | Title`, then `#:` lines (the explanation shown above the code), then the code. Keep each question self-contained (its own imports) because every **Run** starts from a clean namespace. Then run `python build_notebooks.py` to refresh the notebooks.

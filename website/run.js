@@ -209,7 +209,7 @@ function buildQuestion(q, i, unit) {
     const showOut = mode === "output";
     editor.hidden = showOut; output.hidden = !showOut;
     reset.hidden = showOut; showCode.hidden = !showOut;
-    run.innerHTML = ICON_PLAY + (showOut ? " Run again" : " Run");
+    if (!run.disabled) run.innerHTML = ICON_PLAY + (showOut ? " Run again" : " Run");
     fname.textContent = showOut ? "output" : codeName;
     if (!showOut) done.hidden = true;
   };
@@ -219,46 +219,70 @@ function buildQuestion(q, i, unit) {
   };
 
   run.onclick = async () => {
-    if (panel.classList.contains("running")) return;
-    // 1. start the animation over the code
-    if (!output.hidden) await morph(body, () => setMode("code"));
-    panel.style.setProperty("--fx-size", Math.ceil(Math.hypot(panel.offsetWidth, panel.offsetHeight) + 60) + "px");
-    panel.classList.add("running"); run.disabled = true; reset.disabled = true; done.hidden = true;
-    const say = t => { veilStatus.textContent = t; };
+    // Lock synchronously: a second click during the height animation must not start another run.
+    if (run.disabled) return;
+    run.disabled = true; reset.disabled = true; showCode.disabled = true; done.hidden = true;
+    run.innerHTML = ICON_PLAY + " Starting…";
+    const program = code.value;
+    const say = t => {
+      veilStatus.textContent = t;
+      run.innerHTML = ICON_PLAY + (/^Waiting/.test(t) ? " Waiting…" : /^Running/.test(t) ? " Running…" : " Loading…");
+    };
     listeners.add(say);
-    let release = () => {}, text = "", plots = [], failed = false, seconds = 0;
+    let release, text = "", plots = [], failed = false, seconds = 0;
+    // Reserve the shared interpreter before awaiting anything, including animations or packages.
+    const turn = busy;
+    const finished = new Promise(r => { release = r; });
+    busy = turn.then(() => finished);
     try {
-      say(pyReady ? "Starting Python…" : "Starting Python… (about 30 MB, only the first time)");
-      const py = await getPython();
-      say("Loading the libraries this code needs…");
-      await py.loadPackagesFromImports(code.value);
-      const turn = busy; busy = new Promise(r => { release = r; });
-      say("Waiting for the other question to finish…"); await turn;
-      say("Running…");
-      await nextFrame(); await wait(250);                           // let the animation start before Python takes the main thread
-      py.setStdout({ batched: s => { text += s + "\n"; } }); py.setStderr({ batched: s => { text += s + "\n"; } });
-      const t0 = performance.now();
+      // 1. start the animation over the code
+      if (!output.hidden) await morph(body, () => setMode("code"));
+      panel.style.setProperty("--fx-size", Math.ceil(Math.hypot(panel.offsetWidth, panel.offsetHeight) + 60) + "px");
+      panel.classList.add("running");
       try {
-        py.runPython("_prepare(); plt.close('all')");
-        await py.runPythonAsync(code.value, { globals: py.globals.get("dict")() });
-      } catch (e) { failed = true; text += String(e.message || e); }
-      seconds = (performance.now() - t0) / 1000;
-      plots = py.globals.get("_figs").toJs(); py.runPython("_figs.clear()");
-    } catch (e) { failed = true; text = "Could not start Python in this browser: " + e.message; }
-    finally { release(); listeners.delete(say); }
+        say(pyReady ? "Starting Python…" : "Starting Python… (about 30 MB, only the first time)");
+        const py = await getPython();
+        say("Waiting for the other question to finish…"); await turn;
+        say("Loading the libraries this code needs…");
+        await py.loadPackagesFromImports(program);
+        say("Running…");
+        await nextFrame(); await wait(250);                         // let the animation start before Python takes the main thread
+        py.setStdout({ batched: s => { text += s + "\n"; } }); py.setStderr({ batched: s => { text += s + "\n"; } });
+        const t0 = performance.now();
+        const namespace = py.runPython("dict()");
+        try {
+          py.runPython("_prepare(); plt.close('all'); _figs.clear()");
+          await py.runPythonAsync(program, { globals: namespace });
+        } catch (e) { failed = true; text += String(e.message || e); }
+        finally { namespace.destroy(); }
+        seconds = (performance.now() - t0) / 1000;
+        const figures = py.globals.get("_figs");
+        try { plots = figures.toJs(); }
+        finally { figures.destroy(); py.runPython("_figs.clear()"); }
+      } catch (e) { failed = true; text += "Could not run Python in this browser: " + e.message; }
 
-    // 2. the code turns into its output, in the same place
-    const raw = text.replace(/\n+$/, "");
-    if (failed) out.textContent = raw;
-    else out.innerHTML = formatOutput(raw);
-    out.classList.toggle("err", failed);
-    buildGallery(figs, plots);
-    say(failed ? "Error" : "Done");
-    panel.classList.remove("running");
-    output.classList.remove("enter"); void output.offsetWidth; output.classList.add("enter");
-    await morph(body, () => setMode("output"));
-    done.textContent = failed ? "Error" : `Done in ${seconds.toFixed(1)} s`; done.hidden = false;
-    run.disabled = false; reset.disabled = false;
+      // 2. the code turns into its output, in the same place
+      const raw = text.replace(/\n+$/, "");
+      if (failed) out.textContent = raw;
+      else out.innerHTML = formatOutput(raw);
+      out.classList.toggle("err", failed);
+      buildGallery(figs, plots);
+      veilStatus.textContent = failed ? "Error" : "Done";
+      panel.classList.remove("running");
+      output.classList.remove("enter"); void output.offsetWidth; output.classList.add("enter");
+      await morph(body, () => setMode("output"));
+      done.textContent = failed ? "Error" : `Done in ${seconds.toFixed(1)} s`;
+    } catch (e) {
+      out.textContent = "Could not display output: " + (e.message || e);
+      out.classList.add("err"); figs.replaceChildren(); setMode("output");
+      done.textContent = "Error";
+    } finally {
+      // Rendering and animation failures must restore the controls too.
+      release(); listeners.delete(say); panel.classList.remove("running");
+      body.classList.remove("sizing"); body.style.height = "";
+      run.disabled = false; reset.disabled = false; showCode.disabled = false; done.hidden = false;
+      run.innerHTML = ICON_PLAY + (output.hidden ? " Run" : " Run again");
+    }
   };
   return art;
 }
