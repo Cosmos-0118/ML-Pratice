@@ -248,7 +248,10 @@ function buildQuestion(q, i, unit) {
     finally { release(); listeners.delete(say); }
 
     // 2. the code turns into its output, in the same place
-    out.textContent = text.replace(/\n+$/, ""); out.classList.toggle("err", failed);
+    const raw = text.replace(/\n+$/, "");
+    if (failed) out.textContent = raw;
+    else out.innerHTML = formatOutput(raw);
+    out.classList.toggle("err", failed);
     buildGallery(figs, plots);
     say(failed ? "Error" : "Done");
     panel.classList.remove("running");

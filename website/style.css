@@ -197,9 +197,11 @@ button { font: inherit; color: inherit; }
 .output { padding: 18px 20px 24px; }
 .output[hidden], .editor[hidden] { display: none; }
 .out {
-  margin: 0; font: 13px/1.6 var(--mono); color: var(--text); white-space: pre; overflow-x: auto;
+  margin: 0; font: 13.5px/1.65 var(--mono); color: var(--text); white-space: pre; overflow-x: auto;
   padding-bottom: 4px;
 }
+.out-label, .out-header { color: var(--hl-fn); font-weight: 600; }
+.out-punct { color: var(--muted); }
 .out.err { color: var(--err); white-space: pre-wrap; }
 .out:empty { display: none; }
 /* Plots: one big picture at a time, switched with the arrows, the ← → keys or a swipe */

@@ -4,6 +4,7 @@ Every **practice question** of the 21CSC305P Machine Learning syllabus (9 questi
 
 * [`website/code/week1.py` … `week5.py`](website/code/): the single source of truth, one file per unit, one block per question.
 * **The website** ([`website/`](website/)): pick a unit, read the question, press **Run**. Python runs in the browser ([Pyodide](https://pyodide.org)) and the output replaces the code in the same box; plots are shown one at a time (← → keys). Light and dark mode.
+  Captured text is highlighted by [`website/output.js`](website/output.js), independently of the Python code. Labels, table headings, numbers, dates, strings, and data types use the editor's theme colours; the original text and alignment are preserved.
 * **The notebooks** (`Week_0X_*.ipynb`, one per unit): built from the same files by [`build_notebooks.py`](build_notebooks.py) and saved with their outputs.
 
 ## The dataset: daily weather in Seattle, 2012–2015
