@@ -1,11 +1,11 @@
 #: Unit 1 – Introduction
 
 # %% Practice 1 | Devise a program to import, load and view dataset
-#: Load the synthetic weather-regime CSV file into a pandas DataFrame (a table), then look at its size, its columns and its first and last rows.
+#: Load the real Seattle daily weather CSV file into a pandas DataFrame (a table), then look at its size, its columns and its first and last rows.
 import pandas as pd
 
 # Load the CSV file into a DataFrame
-df = pd.read_csv("data/weather_regimes.csv")
+df = pd.read_csv("data/seattle_weather.csv")
 
 # Size of the table
 print("Shape (rows, columns):", df.shape)
@@ -27,7 +27,7 @@ print(df.tail())
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("data/weather_regimes.csv")
+df = pd.read_csv("data/seattle_weather.csv")
 
 # Summary statistics of the number columns
 print(df.describe().round(2))

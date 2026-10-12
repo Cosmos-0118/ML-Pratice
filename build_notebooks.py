@@ -17,6 +17,13 @@ WEEKS = {
     4: ("Week_04_Hidden_Markov_Models", "Hidden Markov models"),
     5: ("Week_05_Combining_Models_Ensembles", "Combining models"),
 }
+DATASETS = {
+    1: "Real Seattle daily weather, 2012–2015 (`website/data/seattle_weather.csv`).",
+    2: "Real Seattle daily weather; next-day targets use a chronological train/test split.",
+    3: "Real UCI Wine measurements (`sklearn.datasets.load_wine`): 178 samples, 13 features. Cultivar labels are used only after fitting.",
+    4: "Real Seattle daily weather; learn on 2012–2014 and evaluate on 2015. Decoding and forecasting are evaluated separately.",
+    5: "Real Wisconsin Diagnostic Breast Cancer measurements (`sklearn.datasets.load_breast_cancer`): 569 samples, 30 features. Cross-validation uses training data only.",
+}
 SETUP = '''%config InlineBackend.figure_format = "svg"
 import os
 import sys
@@ -24,7 +31,7 @@ sys.path.insert(0, "website")          # plot style lives in website/weather.py
 from weather import use_style
 use_style()
 if os.path.basename(os.getcwd()) != "website":
-    os.chdir("website")                # so the programs find data/weather_regimes.csv'''
+    os.chdir("website")                # so weather programs find data/seattle_weather.csv'''
 
 
 def parse(path):
@@ -45,9 +52,8 @@ for number, (name, title) in WEEKS.items():
     questions = parse(ROOT / "website" / "code" / f"week{number}.py")
     cells = [nbformat.v4.new_markdown_cell(
         f"# Unit {number} — {title}\n\nThe practice questions of this unit (21CSC305P). "
-        "Every question below is self-contained: run any cell on its own. All questions use the synthetic daily weather-regime data "
-        "(`website/data/weather_regimes.csv`). The data is a reproducible teaching simulation with four persistent "
-        "weather regimes, not observed weather. Run the first cell before the others.")]
+        "Every question below is self-contained: run any question cell after the setup cell. "
+        f"Dataset: {DATASETS[number]} Run the first cell before the others.")]
     cells.append(nbformat.v4.new_code_cell(SETUP))
     for tag, q_title, description, code in questions:
         cells.append(nbformat.v4.new_markdown_cell(f"## {tag} — {q_title}\n\n{description}"))

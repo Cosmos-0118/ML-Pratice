@@ -1,108 +1,170 @@
 #: Unit 5 – Combining models
 
 # %% Practice 1 | Implement CART learning algorithms to perform categorization
-#: Classify each synthetic day as sun, cloudy, rain or snow from its measurements. CART (Classification And Regression Trees) builds a tree of yes/no questions using Gini impurity. Keep every class represented in the training and test sets, and inspect class-level results as well as overall accuracy. The deliberately distinct regimes make this an easy teaching example.
+#: Classify breast tumors as malignant or benign from measurements of cell nuclei. The Wisconsin Diagnostic Breast Cancer dataset contains real measurements and labels. CART asks a sequence of yes/no questions; use a fixed depth of 3 so its rules remain readable. Compare depths using cross-validation on training data, and evaluate the illustrative depth-3 tree once on held-out data. This classroom example is not a clinical diagnostic tool.
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier, export_text
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
 from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay
 
-df = pd.read_csv("data/weather_regimes.csv")
-columns = ["precipitation", "temp_max", "temp_min", "wind"]
-X = df[columns]
-y = df["weather"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+dataset = load_breast_cancer(as_frame=True)
+X = dataset.data
+y = dataset.target.map(dict(enumerate(dataset.target_names)))
+class_names = list(dataset.target_names)
+feature_names = list(X.columns)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# CART with Gini impurity, at most 3 questions deep
+# Fit a shallow CART model and inspect its learned rules.
 tree = DecisionTreeClassifier(criterion="gini", max_depth=3, random_state=42)
 tree.fit(X_train, y_train)
+print(export_text(tree, feature_names=feature_names))
 
-# The learned rules. Some splits give the same class on both sides:
-# they still make the groups purer (lower Gini), so CART keeps them.
-print(export_text(tree, feature_names=columns))
+# Draw the actual tree so each split and its class counts can be read.
+fig, axis = plt.subplots(figsize=(18, 9), layout="constrained")
+nodes = plot_tree(
+    tree, feature_names=feature_names, class_names=list(tree.classes_),
+    filled=True, rounded=True, proportion=True, fontsize=8, ax=axis,
+)
+# Node boxes keep their light fill in both website themes; preserve dark text on them.
+for node in nodes:
+    node.set_color("black")
+axis.set_title("CART decision tree (maximum depth 3)")
+plt.show()
 
-y_pred = tree.predict(X_test)
-print("Test accuracy:", round(accuracy_score(y_test, y_pred), 3))
-print(classification_report(y_test, y_pred, zero_division=0))
-print()
-
-# Classify one new day
-new_day = pd.DataFrame({"precipitation": [18.0], "temp_max": [16.0], "temp_min": [12.0], "wind": [4.5]})
-print("A day with 18 mm precipitation, 16 °C max, 12 °C min, wind 4.5 ->", tree.predict(new_day)[0])
-
-# Plot: compare fit and generalization as depth grows; overfitting is not guaranteed.
+# Compare tree depths using only the training portion of the data.
 depths = range(1, 13)
-train_acc = []
-test_acc = []
+train_means = []
+cv_means = []
+cv_stds = []
 for depth in depths:
     model = DecisionTreeClassifier(max_depth=depth, random_state=42)
     model.fit(X_train, y_train)
-    train_acc.append(model.score(X_train, y_train))
-    test_acc.append(model.score(X_test, y_test))
+    fold_scores = cross_val_score(model, X_train, y_train, cv=cv, scoring="accuracy")
+    train_means.append(model.score(X_train, y_train))
+    cv_means.append(fold_scores.mean())
+    cv_stds.append(fold_scores.std())
 
-plt.figure(figsize=(9, 4.5))
-plt.plot(depths, train_acc, "o-", label="training data")
-plt.plot(depths, test_acc, "o-", label="test data")
-plt.xlabel("tree depth")
+plt.figure(figsize=(9, 4.5), layout="constrained")
+plt.plot(depths, train_means, "o-", label="training accuracy")
+plt.errorbar(depths, cv_means, yerr=cv_stds, fmt="o-", capsize=3, label="5-fold CV accuracy")
+plt.xlabel("maximum tree depth")
 plt.ylabel("accuracy")
 plt.ylim(0, 1.05)
-plt.title("Tree depth: training vs test accuracy")
+plt.title("Tree depth: training fit and cross-validation")
 plt.legend()
 plt.show()
 
-fig, axis = plt.subplots(figsize=(7, 5), layout="constrained")
-ConfusionMatrixDisplay.from_predictions(y_test, y_pred, labels=sorted(y.unique()), cmap="Blues", ax=axis)
-plt.title("CART: actual vs predicted weather regime")
+# Evaluate the depth-3 tree once on the held-out test data.
+y_pred = tree.predict(X_test)
+print("Held-out accuracy:", round(accuracy_score(y_test, y_pred), 3))
+print(classification_report(y_test, y_pred, labels=class_names, zero_division=0))
+fig, axis = plt.subplots(figsize=(6, 5), layout="constrained")
+ConfusionMatrixDisplay.from_predictions(
+    y_test, y_pred, labels=class_names, display_labels=class_names,
+    cmap="Blues", values_format="d", ax=axis,
+)
+axis.set_title("CART: held-out actual vs predicted diagnosis")
 plt.show()
 
 # %% Practice 2 | Implement Ensemble learning models to perform classification
-#: Compare single-tree and ensemble classification on the same stratified split of synthetic data. Bagging trains trees on random samples, a random forest also samples columns, AdaBoost focuses on previous errors, and voting combines different models. An ensemble need not beat a single tree on this easy dataset; report the results without assuming which model wins.
+#: Compare one decision tree, bagging, random forest, AdaBoost and soft voting on the same real tumor dataset. Cross-validation estimates performance using training data only. After comparing models, use each model's held-out results once. Ensembles may help, but the data decides which model performs best.
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import BaggingClassifier, RandomForestClassifier, AdaBoostClassifier, VotingClassifier
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, ConfusionMatrixDisplay
 
-df = pd.read_csv("data/weather_regimes.csv")
-columns = ["precipitation", "temp_max", "temp_min", "wind"]
-X = df[columns]
-y = df["weather"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+dataset = load_breast_cancer(as_frame=True)
+X = dataset.data
+y = dataset.target.map(dict(enumerate(dataset.target_names)))
+class_names = list(dataset.target_names)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# Fit each model on the same inputs. Labels are targets, never input columns.
+# Keep the inputs and split identical for each model.
 models = {
-    "Single tree (no depth limit)": DecisionTreeClassifier(random_state=42),
-    "Bagging": BaggingClassifier(DecisionTreeClassifier(), n_estimators=100, random_state=42),
+    "Single tree": DecisionTreeClassifier(random_state=42),
+    "Bagging": BaggingClassifier(
+        estimator=DecisionTreeClassifier(random_state=42), n_estimators=100, random_state=42,
+    ),
     "Random forest": RandomForestClassifier(n_estimators=100, random_state=42),
-    "AdaBoost": AdaBoostClassifier(DecisionTreeClassifier(max_depth=2), n_estimators=50, random_state=42),
-    "Voting": VotingClassifier([
+    "AdaBoost": AdaBoostClassifier(
+        estimator=DecisionTreeClassifier(max_depth=2, random_state=42),
+        n_estimators=50, random_state=42,
+    ),
+    "Voting": VotingClassifier(estimators=[
         ("tree", DecisionTreeClassifier(max_depth=3, random_state=42)),
         ("forest", RandomForestClassifier(n_estimators=100, random_state=42)),
-        ("logistic", make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))),
-    ]),
+        ("logistic", make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))),
+    ], voting="soft"),
 }
 
-accuracies = {}
+# Measure the majority-class baseline and compare models with the same training folds.
 majority = y_train.value_counts().idxmax()
-print("Training-majority baseline accuracy:", round((y_test == majority).mean(), 3))
-for name in models:
-    model = models[name]
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
-    accuracies[name] = accuracy_score(y_test, predictions)
-    macro_f1 = f1_score(y_test, predictions, average="macro")
-    print(name, "accuracy:", round(accuracies[name], 3), "macro F1:", round(macro_f1, 3))
+baseline_accuracy = (y_test == majority).mean()
+print("Training-majority baseline held-out accuracy:", round(baseline_accuracy, 3))
+cv_results = {}
+accuracies = {}
+macro_f1_scores = {}
+predictions_by_model = {}
+for name, model in models.items():
+    scores = cross_validate(model, X_train, y_train, cv=cv, scoring="accuracy")
+    cv_results[name] = scores["test_score"]
 
-# Plot: compare the accuracies
-plt.figure(figsize=(9, 4.5), layout="constrained")
-bars = plt.barh(list(accuracies.keys()), list(accuracies.values()))
-plt.bar_label(bars, fmt="%.3f", padding=3)
-plt.xlim(0, 1.1)
-plt.xlabel("accuracy")
-plt.title("Single tree vs ensembles")
+    # Fit once on all training rows, then score held-out rows once.
+    model.fit(X_train, y_train)
+    heldout_predictions = model.predict(X_test)
+    predictions_by_model[name] = heldout_predictions
+    accuracies[name] = accuracy_score(y_test, heldout_predictions)
+    macro_f1_scores[name] = f1_score(
+        y_test, heldout_predictions, labels=class_names, average="macro",
+    )
+    print(
+        name,
+        "CV accuracy:", round(cv_results[name].mean(), 3),
+        "+/-", round(cv_results[name].std(), 3),
+        "held-out accuracy:", round(accuracies[name], 3),
+        "held-out macro F1:", round(macro_f1_scores[name], 3),
+    )
+
+# Show fold-to-fold variation and held-out performance on a full accuracy scale.
+names = list(models.keys())
+cv_means = [cv_results[name].mean() for name in names]
+cv_stds = [cv_results[name].std() for name in names]
+heldout_values = [accuracies[name] for name in names]
+positions = range(len(names))
+plt.figure(figsize=(10, 5), layout="constrained")
+plt.errorbar(positions, cv_means, yerr=cv_stds, fmt="o", capsize=4, label="5-fold CV mean +/- SD")
+plt.scatter(positions, heldout_values, marker="D", label="held-out accuracy")
+plt.axhline(baseline_accuracy, color="gray", linestyle="--", label="majority baseline")
+plt.xticks(list(positions), names, rotation=15, ha="right")
+plt.ylabel("accuracy")
+plt.ylim(0, 1.05)
+plt.title("Classifier comparison: training CV and held-out results")
+plt.legend()
+plt.show()
+
+# Compare the held-out errors with the same malignant/benign label order.
+fig, axes = plt.subplots(2, 3, figsize=(12, 8), layout="constrained")
+for axis, (name, heldout_predictions) in zip(axes.flat, predictions_by_model.items()):
+    ConfusionMatrixDisplay.from_predictions(
+        y_test, heldout_predictions, labels=class_names, display_labels=class_names,
+        cmap="Blues", values_format="d", ax=axis, colorbar=False,
+    )
+    axis.set_title(name)
+for axis in axes.flat[len(models):]:
+    axis.set_visible(False)
+fig.suptitle("Held-out confusion matrices (actual rows, predicted columns)")
 plt.show()

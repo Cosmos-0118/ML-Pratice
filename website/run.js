@@ -52,10 +52,10 @@ function getPython() {
     const py = await loadPyodide({ indexURL: PYODIDE });
     pyStatus("loading", "Loading numpy, pandas and matplotlib…");
     await py.loadPackage(["numpy", "pandas", "matplotlib"]);        // scipy and scikit-learn are loaded only for questions that import them
-    pyStatus("loading", "Loading the synthetic weather data…");
+    pyStatus("loading", "Loading the real Seattle weather data…");
     py.FS.mkdir("data");
     py.FS.writeFile("weather.py", await (await fetch("weather.py")).text());
-    py.FS.writeFile("data/weather_regimes.csv", await (await fetch("data/weather_regimes.csv")).text());
+    py.FS.writeFile("data/seattle_weather.csv", await (await fetch("data/seattle_weather.csv")).text());
     py.runPython(SETUP);
     pyStatus("ready", "Python is ready");
     return py;

@@ -12,7 +12,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-test("Python bootstrap loads the dataset used by every practice question", async t => {
+test("Python bootstrap loads real weather; clustering and classifiers use built-in real datasets", async t => {
   const dom = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=1", runScripts: "outside-only" });
   const w = dom.window;
   t.after(() => w.close());
@@ -30,12 +30,17 @@ test("Python bootstrap loads the dataset used by every practice question", async
   w.eval(source("run.js"));
   w.loadScript = async () => {};
   assert.equal(await w.getPython(), py);
-  for (let unit = 1; unit <= 5; unit++) {
+  for (const unit of [1, 2, 4]) {
     const paths = [...source(`code/week${unit}.py`).matchAll(/pd\.read_csv\("([^"]+)"\)/g)];
     assert.ok(paths.length > 0);
     for (const [, path] of paths) {
       assert.equal(files.get(path), source(path), `Unit ${unit} must read the loaded CSV`);
     }
+  }
+  assert.match(source("code/week3.py"), /load_wine\(as_frame=True\)/);
+  assert.match(source("code/week5.py"), /load_breast_cancer\(as_frame=True\)/);
+  for (const unit of [3, 5]) {
+    assert.doesNotMatch(source(`code/week${unit}.py`), /read_csv|weather_regimes/);
   }
 });
 

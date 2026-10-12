@@ -1,14 +1,14 @@
 #: Unit 2 – Linear models for regression
 
 # %% Practice 1 | Implement linear regression to perform prediction
-#: Predict tomorrow's highest temperature from today's synthetic weather. Linear regression learns one weight per input column: prediction = intercept + w1·x1 + w2·x2 + … Train on the first 80% of days and test on the final 20%, keeping the future out of training.
+#: Predict tomorrow's highest temperature from today's observed Seattle weather. Linear regression learns one weight per input column: prediction = intercept + w1·x1 + w2·x2 + … Train on the first 80% of days and test on the final 20%, keeping the future out of training.
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 
-df = pd.read_csv("data/weather_regimes.csv")
+df = pd.read_csv("data/seattle_weather.csv")
 
 # Target: tomorrow's temp_max. shift(-1) moves every value up one row.
 df["temp_max_tomorrow"] = df["temp_max"].shift(-1)
@@ -53,7 +53,7 @@ plt.title("Linear regression: predicted vs actual")
 plt.show()
 
 # %% Practice 2 | Implement Bayesian logistic regression and SVM for classification
-#: Will tomorrow have precipitation (1) or stay dry (0)? This includes rain and snow in the synthetic data. Bayesian logistic regression finds the most probable weights under a Gaussian prior; a Laplace approximation estimates weight uncertainty. An SVM learns a separating boundary. Train on earlier days and test on later days.
+#: Will tomorrow have precipitation (1) or stay dry (0)? This includes rain and snow in the observed Seattle data. Bayesian logistic regression finds the most probable weights under a Gaussian prior; a Laplace approximation estimates weight uncertainty. An SVM learns a separating boundary. Train on earlier days and test on later days.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -63,7 +63,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 
-df = pd.read_csv("data/weather_regimes.csv")
+df = pd.read_csv("data/seattle_weather.csv")
 
 # Target: 1 if it rains tomorrow, else 0
 df["precipitation_tomorrow"] = df["precipitation"].shift(-1)
