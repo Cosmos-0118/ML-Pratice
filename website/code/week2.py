@@ -1,14 +1,14 @@
 #: Unit 2 – Linear models for regression
 
 # %% Practice 1 | Implement linear regression to perform prediction
-#: Predict tomorrow's highest temperature from today's weather. Linear regression learns one weight per input column: prediction = intercept + w1·x1 + w2·x2 + … We train on 80% of the days and test on the other 20%.
+#: Predict tomorrow's highest temperature from today's synthetic weather. Linear regression learns one weight per input column: prediction = intercept + w1·x1 + w2·x2 + … Train on the first 80% of days and test on the final 20%, keeping the future out of training.
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 
-df = pd.read_csv("data/seattle_weather.csv")
+df = pd.read_csv("data/weather_regimes.csv")
 
 # Target: tomorrow's temp_max. shift(-1) moves every value up one row.
 df["temp_max_tomorrow"] = df["temp_max"].shift(-1)
@@ -19,7 +19,7 @@ X = df[["temp_max", "temp_min", "precipitation", "wind"]]
 y = df["temp_max_tomorrow"]
 
 # 80% of the days to train, 20% to test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
 # Train the model and predict
 model = LinearRegression()
@@ -35,6 +35,7 @@ print()
 # How good the predictions are
 print("Mean absolute error:", round(mean_absolute_error(y_test, y_pred), 2), "°C")
 print("R² score:", round(r2_score(y_test, y_pred), 2), "(1 = perfect)")
+print("Predict today's temperature again (baseline MAE):", round(mean_absolute_error(y_test, X_test["temp_max"]), 2), "°C")
 print()
 
 # A few predictions next to the real values
@@ -44,14 +45,15 @@ print(result.head(10))
 # Plot: predicted against actual (perfect predictions lie on the red line)
 plt.figure(figsize=(9, 4.5))
 plt.scatter(y_test, y_pred, s=12)
-plt.plot([0, 36], [0, 36], color="red", linestyle="--")
+limits = [min(y_test.min(), y_pred.min()), max(y_test.max(), y_pred.max())]
+plt.plot(limits, limits, color="red", linestyle="--")
 plt.xlabel("actual temp_max tomorrow (°C)")
 plt.ylabel("predicted (°C)")
 plt.title("Linear regression: predicted vs actual")
 plt.show()
 
 # %% Practice 2 | Implement Bayesian logistic regression and SVM for classification
-#: Will it rain tomorrow (1) or not (0)? Bayesian logistic regression starts with a prior belief that every weight is near 0, learns the most probable weights from the data, and also tells how sure it is about each weight. An SVM draws the boundary between the two classes with the widest possible margin.
+#: Will tomorrow have precipitation (1) or stay dry (0)? This includes rain and snow in the synthetic data. Bayesian logistic regression finds the most probable weights under a Gaussian prior; a Laplace approximation estimates weight uncertainty. An SVM learns a separating boundary. Train on earlier days and test on later days.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -61,7 +63,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 
-df = pd.read_csv("data/seattle_weather.csv")
+df = pd.read_csv("data/weather_regimes.csv")
 
 # Target: 1 if it rains tomorrow, else 0
 df["precipitation_tomorrow"] = df["precipitation"].shift(-1)
@@ -71,7 +73,7 @@ df = df.dropna()   # the last day has no tomorrow
 columns = ["temp_max", "temp_min", "precipitation", "wind"]
 X = df[columns]
 y = df["rain_tomorrow"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
 # Put every column on the same scale (mean 0, std 1)
 scaler = StandardScaler()
@@ -125,7 +127,7 @@ plt.show()
 # Plot 2: compare the accuracies
 plt.figure(figsize=(9, 4.5))
 plt.bar(["Bayesian logistic", "SVM linear", "SVM RBF"], [blr_acc, linear_acc, rbf_acc])
-plt.ylim(0.5, 0.8)
+plt.ylim(0, 1.05)
 plt.ylabel("accuracy")
 plt.title("Will it rain tomorrow? Test accuracy")
 plt.show()

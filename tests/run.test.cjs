@@ -12,6 +12,33 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+test("Python bootstrap loads the dataset used by every practice question", async t => {
+  const dom = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=1", runScripts: "outside-only" });
+  const w = dom.window;
+  t.after(() => w.close());
+  w.matchMedia = () => ({ matches: false });
+  w.requestIdleCallback = () => {};
+  w.fetch = async path => ({ ok: true, text: async () => source(path) });
+  const files = new Map();
+  const py = {
+    loadPackage: async () => {},
+    FS: { mkdir() {}, writeFile: (path, contents) => files.set(path, contents) },
+    runPython() {},
+  };
+  w.loadPyodide = async () => py;
+  w.eval(source("output.js"));
+  w.eval(source("run.js"));
+  w.loadScript = async () => {};
+  assert.equal(await w.getPython(), py);
+  for (let unit = 1; unit <= 5; unit++) {
+    const paths = [...source(`code/week${unit}.py`).matchAll(/pd\.read_csv\("([^"]+)"\)/g)];
+    assert.ok(paths.length > 0);
+    for (const [, path] of paths) {
+      assert.equal(files.get(path), source(path), `Unit ${unit} must read the loaded CSV`);
+    }
+  }
+});
+
 async function page(t) {
   const dom = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=1", runScripts: "outside-only" });
   const w = dom.window;

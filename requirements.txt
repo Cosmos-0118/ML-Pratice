@@ -4,3 +4,6 @@ scipy
 matplotlib
 scikit-learn
 jupyterlab
+nbformat
+nbclient
+ipykernel
