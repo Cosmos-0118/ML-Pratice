@@ -8,6 +8,27 @@ const UNITS = {
   4: "Hidden Markov models",
   5: "Combining models",
 };
+// These CSV copies contain the original rows, before each practice prepares its inputs.
+// wine.csv and breast_cancer.csv copy scikit-learn 1.6.1's sklearn/datasets/data files,
+// with feature names and a target column added as the CSV header.
+const WEATHER_DATASET = {
+  name: "Seattle daily weather", file: "data/seattle_weather.csv",
+  source: "https://github.com/vega/vega-datasets/blob/main/data/seattle-weather.csv",
+  description: "Daily Seattle observations from 2012–2015: precipitation, maximum and minimum temperature, wind and weather type.",
+};
+const DATASETS = {
+  1: WEATHER_DATASET, 2: WEATHER_DATASET, 4: WEATHER_DATASET,
+  3: {
+    name: "Wine", file: "data/wine.csv",
+    source: "https://archive.ics.uci.edu/dataset/109/wine",
+    description: "13 chemical measurements per wine. Target: 0, 1 or 2 identifies the cultivar. These are the same rows loaded by load_wine(). Clustering uses the measurements, not the target labels.",
+  },
+  5: {
+    name: "Wisconsin Diagnostic Breast Cancer", file: "data/breast_cancer.csv",
+    source: "https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic",
+    description: "30 measurements per sample. Target: 0 = malignant, 1 = benign. These are the same rows loaded by load_breast_cancer().",
+  },
+};
 let pyReady = null;
 let busy = Promise.resolve();     // questions run one at a time, so their output and plots never get mixed up
 
@@ -164,13 +185,26 @@ document.addEventListener("keydown", e => {
 });
 
 function buildQuestion(q, i, unit) {
+  const dataset = DATASETS[unit];
   const art = document.createElement("article");
   art.className = "q"; art.id = "q" + (i + 1); art.hidden = true;
   art.setAttribute("role", "tabpanel");
   art.innerHTML = `
-    <p class="q-tag">${esc(q.tag)}</p>
+    <div class="q-heading">
+      <p class="q-tag">${esc(q.tag)}</p>
+      <button class="btn dataset-button" type="button" aria-expanded="false" aria-controls="dataset-${i + 1}">Dataset</button>
+    </div>
     <h1 class="q-title">${esc(q.title)}</h1>
     <p class="q-desc">${esc(q.description)}</p>
+    <section class="dataset-panel" id="dataset-${i + 1}" aria-labelledby="dataset-title-${i + 1}" hidden>
+      <h2 id="dataset-title-${i + 1}">${esc(dataset.name)}</h2>
+      <p>${esc(dataset.description)}</p>
+      <div class="dataset-links">
+        <a href="${dataset.source}" target="_blank" rel="noopener noreferrer">Original source ↗</a>
+        <a href="${dataset.file}" download>Download CSV ↓</a>
+      </div>
+      <div class="dataset-content" aria-live="polite"></div>
+    </section>
     <div class="panel">
       <div class="halo" aria-hidden="true"></div><div class="fx" aria-hidden="true"></div>
       <div class="panel-inner">
@@ -191,6 +225,37 @@ function buildQuestion(q, i, unit) {
       </div>
     </div>`;
   const $ = s => art.querySelector(s);
+  const datasetButton = $(".dataset-button"), datasetPanel = $(".dataset-panel"), datasetContent = $(".dataset-content");
+  let datasetLoaded = false, datasetLoading = false;
+  datasetButton.onclick = async () => {
+    datasetPanel.hidden = !datasetPanel.hidden;
+    datasetButton.setAttribute("aria-expanded", String(!datasetPanel.hidden));
+    if (datasetPanel.hidden || datasetLoaded || datasetLoading) return;
+    datasetLoading = true;
+    datasetContent.textContent = "Loading dataset…";
+    try {
+      const response = await fetch(dataset.file);
+      if (!response.ok) throw new Error("Could not load dataset");
+      // The bundled CSVs have plain comma-separated fields (no quoted commas).
+      const rows = (await response.text()).trim().split(/\r?\n/).map(line => line.split(","));
+      const columns = rows.shift();
+      const cell = value => esc(value);
+      datasetContent.innerHTML = `
+        <p class="dataset-size">${rows.length.toLocaleString("en-US")} rows · ${columns.length} columns · Original data before preparation</p>
+        <div class="dataset-scroll" tabindex="0" role="region" aria-label="Dataset table, scroll to see all rows and columns">
+          <table>
+            <caption>${esc(dataset.name)} — all original rows</caption>
+            <thead><tr>${columns.map(name => `<th scope="col">${cell(name)}</th>`).join("")}</tr></thead>
+            <tbody>${rows.map(row => `<tr>${row.map(value => `<td>${cell(value)}</td>`).join("")}</tr>`).join("")}</tbody>
+          </table>
+        </div>`;
+      datasetLoaded = true;
+    } catch (error) {
+      datasetContent.textContent = "Could not load the dataset. Close and reopen Dataset to try again.";
+    } finally {
+      datasetLoading = false;
+    }
+  };
   const panel = $(".panel"), body = $(".panel-body"), editor = $(".editor"), pre = $(".editor pre"), code = $("textarea");
   const output = $(".output"), out = $(".out"), figs = $(".figs"), veilStatus = $(".veil-status");
   const run = $(".run"), reset = $(".reset"), showCode = $(".show-code"), done = $(".done"), fname = $(".fname");

@@ -44,8 +44,8 @@ test("Python bootstrap loads real weather; clustering and classifiers use built-
   }
 });
 
-async function page(t) {
-  const dom = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=1", runScripts: "outside-only" });
+async function page(t, unit = 1) {
+  const dom = new JSDOM(source("unit.html"), { url: `http://localhost/unit.html?u=${unit}`, runScripts: "outside-only" });
   const w = dom.window;
   t.after(() => w.close());
   const timers = new Map();
@@ -55,7 +55,7 @@ async function page(t) {
   w.requestAnimationFrame = callback => queueMicrotask(callback);
   w.requestIdleCallback = () => {}; // Background preloading is tested separately from clicks.
   w.matchMedia = () => ({ matches: false });
-  w.fetch = async () => ({ ok: true, text: async () => source("code/week1.py") });
+  w.fetch = async path => ({ ok: true, text: async () => source(path) });
   w.eval(source("output.js"));
   w.eval(source("run.js"));
   const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
@@ -93,6 +93,69 @@ async function page(t) {
   };
   return { w, py, q, executed, settle, flush };
 }
+
+test("every practice can view its actual dataset before running Python", async t => {
+  const datasets = {
+    1: ["Seattle daily weather", 1461, 6, "2012-01-01"],
+    2: ["Seattle daily weather", 1461, 6, "2012-01-01"],
+    3: ["Wine", 178, 14, "14.23"],
+    4: ["Seattle daily weather", 1461, 6, "2012-01-01"],
+    5: ["Wisconsin Diagnostic Breast Cancer", 569, 31, "17.99"],
+  };
+  for (const [unit, [name, rows, columns, firstValue]] of Object.entries(datasets)) {
+    const p = await page(t, unit);
+    for (const art of p.w.document.querySelectorAll(".q")) {
+      const button = art.querySelector(".dataset-button");
+      assert.ok(button, `Unit ${unit} ${art.id} has a Dataset button`);
+      const panel = p.w.document.getElementById(button.getAttribute("aria-controls"));
+      assert.equal(panel.hidden, true);
+      button.click(); await p.settle();
+      assert.equal(panel.hidden, false);
+      assert.equal(button.getAttribute("aria-expanded"), "true");
+      assert.equal(panel.querySelector("h2").textContent, name);
+      assert.equal(panel.querySelectorAll("tbody tr").length, rows);
+      assert.equal(panel.querySelectorAll("thead th").length, columns);
+      assert.equal(panel.querySelector("tbody td").textContent, firstValue);
+      assert.ok(panel.querySelector("a[download]").getAttribute("href").endsWith(".csv"));
+      assert.equal(p.executed.length, 0);
+      button.click();
+      assert.equal(panel.hidden, true);
+      assert.equal(button.getAttribute("aria-expanded"), "false");
+    }
+  }
+});
+
+test("dataset loading errors offer a retry and display cells as plain text", async t => {
+  const p = await page(t), art = p.q(0).art;
+  const button = art.querySelector(".dataset-button");
+  assert.ok(button);
+  let requests = 0;
+  p.w.fetch = async () => {
+    if (++requests === 1) return { ok: false };
+    return { ok: true, text: async () => "date,weather\n2012-01-01,<img src=x onerror=alert(1)>\n" };
+  };
+  button.click(); await p.settle();
+  assert.match(art.querySelector(".dataset-content").textContent, /Could not load/);
+  button.click(); button.click(); await p.settle();
+  assert.equal(requests, 2);
+  assert.equal(art.querySelector(".dataset-content img"), null);
+  assert.equal(art.querySelector("tbody td:last-child").textContent, "<img src=x onerror=alert(1)>");
+});
+
+test("dataset remains available while a practice runs and after its output appears", async t => {
+  const p = await page(t), q = p.q(0), loading = deferred();
+  p.w.getPython = () => loading.promise;
+  const run = q.run.onclick(); await p.settle();
+  const button = q.art.querySelector(".dataset-button");
+  assert.ok(button);
+  assert.equal(button.disabled, false);
+  button.click(); await p.settle();
+  assert.equal(q.art.querySelector(".dataset-panel").hidden, false);
+  loading.resolve(p.py); await p.flush(); await run;
+  assert.equal(q.art.querySelector(".dataset-panel").hidden, false);
+  button.click();
+  assert.equal(q.art.querySelector(".dataset-panel").hidden, true);
+});
 
 test("a rerun locks immediately and rapid clicks execute only once", async t => {
   const p = await page(t), q = p.q(0);
