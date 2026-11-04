@@ -8,7 +8,8 @@ const UNITS = {
   4: "Hidden Markov models",
   5: "Combining models",
 };
-// These CSV copies contain the original rows, before each practice prepares its inputs.
+const ACTIVE_UNIT = Math.min(5, Math.max(1, parseInt(new URLSearchParams(location.search).get("u"), 10) || 1));
+// Sleep-EDF is an attributed feature extract; the other CSVs contain original rows.
 // wine.csv and breast_cancer.csv copy scikit-learn 1.6.1's sklearn/datasets/data files,
 // with feature names and a target column added as the CSV header.
 const WEATHER_DATASET = {
@@ -17,7 +18,13 @@ const WEATHER_DATASET = {
   description: "Daily Seattle observations from 2012–2015: precipitation, maximum and minimum temperature, wind and weather type.",
 };
 const DATASETS = {
-  1: WEATHER_DATASET, 2: WEATHER_DATASET, 4: WEATHER_DATASET,
+  1: WEATHER_DATASET, 2: WEATHER_DATASET,
+  4: {
+    name: "Sleep-EDF: sleep stages from EEG and eye movements", file: "data/sleep_edf.csv",
+    source: "https://physionet.org/content/sleep-edfx/1.0.0/",
+    provenance: "data/sleep_edf_provenance.json", previewRows: 200,
+    description: "Eight people (SC400–SC407), one recording each: 21,948 nonoverlapping 30-second segments and 15 signal features. The inputs are natural-log power in delta (0.5–4 Hz), theta (4–8 Hz), alpha (8–12 Hz), sigma (12–16 Hz) and beta (16–30 Hz) bands for two EEG channels and horizontal eye movements (EOG). Stage: 0 = Wake, 1 = N1 (light sleep), 2 = N2, 3 = N3 (original stages 3/4 combined), 4 = REM; −1 marks one unscored segment. Subject, epoch and seconds identify separate recordings; they are not model inputs. Features come from real signals; labels come from expert annotations. Credit: Bob Kemp and colleagues / PhysioNet; Open Data Commons Attribution License v1.0.",
+  },
   3: {
     name: "Wine", file: "data/wine.csv",
     source: "https://archive.ics.uci.edu/dataset/109/wine",
@@ -73,10 +80,14 @@ function getPython() {
     const py = await loadPyodide({ indexURL: PYODIDE });
     pyStatus("loading", "Loading numpy, pandas and matplotlib…");
     await py.loadPackage(["numpy", "pandas", "matplotlib"]);        // scipy and scikit-learn are loaded only for questions that import them
-    pyStatus("loading", "Loading the real Seattle weather data…");
+    const dataset = ACTIVE_UNIT === 4 ? DATASETS[4] : WEATHER_DATASET;
+    pyStatus("loading", ACTIVE_UNIT === 4 ? "Loading the sleep signal features…" : "Loading the real Seattle weather data…");
     py.FS.mkdir("data");
-    py.FS.writeFile("weather.py", await (await fetch("weather.py")).text());
-    py.FS.writeFile("data/seattle_weather.csv", await (await fetch("data/seattle_weather.csv")).text());
+    for (const path of ["weather.py", dataset.file]) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error("Could not load " + path);
+      py.FS.writeFile(path, await response.text());
+    }
     py.runPython(SETUP);
     pyStatus("ready", "Python is ready");
     return py;
@@ -202,6 +213,7 @@ function buildQuestion(q, i, unit) {
       <div class="dataset-links">
         <a href="${dataset.source}" target="_blank" rel="noopener noreferrer">Original source ↗</a>
         <a href="${dataset.file}" download>Download CSV ↓</a>
+        ${dataset.provenance ? `<a href="${dataset.provenance}" target="_blank" rel="noopener noreferrer">Preparation and source checksums ↗</a>` : ""}
       </div>
       <div class="dataset-content" aria-live="polite"></div>
     </section>
@@ -239,14 +251,15 @@ function buildQuestion(q, i, unit) {
       // The bundled CSVs have plain comma-separated fields (no quoted commas).
       const rows = (await response.text()).trim().split(/\r?\n/).map(line => line.split(","));
       const columns = rows.shift();
+      const preview = rows.slice(0, dataset.previewRows || rows.length);
       const cell = value => esc(value);
       datasetContent.innerHTML = `
-        <p class="dataset-size">${rows.length.toLocaleString("en-US")} rows · ${columns.length} columns · Original data before preparation</p>
+        <p class="dataset-size">${rows.length.toLocaleString("en-US")} rows · ${columns.length} columns · ${dataset.provenance ? "Signal features extracted from original recordings" : "Original data before preparation"}${preview.length < rows.length ? ` · Showing first ${preview.length} rows; download CSV for all rows` : ""}</p>
         <div class="dataset-scroll" tabindex="0" role="region" aria-label="Dataset table, scroll to see all rows and columns">
           <table>
-            <caption>${esc(dataset.name)} — all original rows</caption>
+            <caption>${esc(dataset.name)} — ${preview.length < rows.length ? "first " + preview.length + " rows" : "all original rows"}</caption>
             <thead><tr>${columns.map(name => `<th scope="col">${cell(name)}</th>`).join("")}</tr></thead>
-            <tbody>${rows.map(row => `<tr>${row.map(value => `<td>${cell(value)}</td>`).join("")}</tr>`).join("")}</tbody>
+            <tbody>${preview.map(row => `<tr>${row.map(value => `<td>${cell(value)}</td>`).join("")}</tr>`).join("")}</tbody>
           </table>
         </div>`;
       datasetLoaded = true;
@@ -353,7 +366,7 @@ function buildQuestion(q, i, unit) {
 }
 
 async function buildPage() {
-  const unit = Math.min(5, Math.max(1, parseInt(new URLSearchParams(location.search).get("u"), 10) || 1));
+  const unit = ACTIVE_UNIT;
   document.title = `Unit ${unit} – ${UNITS[unit]} | ML Practice`;
   document.getElementById("crumb").innerHTML = `<b>Unit ${unit}</b> · ${esc(UNITS[unit])}`;
   const root = document.getElementById("questions"), tabs = document.getElementById("tabs"), nav = document.getElementById("nextnav");

@@ -1,0 +1,176 @@
+{
+  "name": "Sleep-EDF Expanded 1.0.0 \u2014 eight-person teaching subset",
+  "source": "https://physionet.org/content/sleep-edfx/1.0.0/",
+  "license": "Open Data Commons Attribution License v1.0",
+  "credit": "Bob Kemp and colleagues; PhysioNet. See the source page for required citations.",
+  "csv_sha256": "ea2b1f7c3f2641d6feb2eabdf5cb41c5a22864a073ce19f09ba82d0f196c4e6c",
+  "rows": 21948,
+  "scored_rows": 21947,
+  "subjects": [
+    "SC400",
+    "SC401",
+    "SC402",
+    "SC403",
+    "SC404",
+    "SC405",
+    "SC406",
+    "SC407"
+  ],
+  "epoch_seconds": 30,
+  "stages": {
+    "-1": "Movement/unscored",
+    "0": "Wake",
+    "1": "N1",
+    "2": "N2",
+    "3": "N3 (original stages 3 and 4)",
+    "4": "REM"
+  },
+  "features": [
+    "eeg_fpz_delta",
+    "eeg_fpz_theta",
+    "eeg_fpz_alpha",
+    "eeg_fpz_sigma",
+    "eeg_fpz_beta",
+    "eeg_pz_delta",
+    "eeg_pz_theta",
+    "eeg_pz_alpha",
+    "eeg_pz_sigma",
+    "eeg_pz_beta",
+    "eog_delta",
+    "eog_theta",
+    "eog_alpha",
+    "eog_sigma",
+    "eog_beta"
+  ],
+  "preparation": "First night per person; nonoverlapping 30-second epochs. Welch power spectrum at 100 Hz, nperseg=256, default Hann window, constant detrending and 50% internal Welch overlap. Sum density bins in [0.5,4), [4,8), [8,12), [12,16), [16,30) Hz, multiply by frequency spacing, floor at 1e-12 and take natural log. Source signals are in microvolts. No fitting or label-dependent feature selection.",
+  "source_files": [
+    {
+      "file": "SC4001EC-Hypnogram.edf",
+      "bytes": 4620,
+      "sha256": "a4cf67694ade1b52a0ddd06d5817fd45d2d3e8bac5302f640f3e9cfbbf12a996",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4001EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4001EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4001E0-PSG.edf",
+      "bytes": 48338048,
+      "sha256": "2b40a18adf76af69a42d6db1f30f31d26b369f6d27ca0050ef30147ef892b131",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4001E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4001E0-PSG.edf"
+    },
+    {
+      "file": "SC4011E0-PSG.edf",
+      "bytes": 51110528,
+      "sha256": "9e4c34f3f631275990fd7a2d61a24e998c7b03eb9b37ebe5cd7c8323d8310a15",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4011E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4011E0-PSG.edf"
+    },
+    {
+      "file": "SC4011EH-Hypnogram.edf",
+      "bytes": 3896,
+      "sha256": "5bbf7b4ed8a95c8d20e4347b08c2ded2ee21e2dac4680dedf629795adc2edc83",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4011EH-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4011EH-Hypnogram.edf"
+    },
+    {
+      "file": "SC4021E0-PSG.edf",
+      "bytes": 51147008,
+      "sha256": "810adaedf42621e389ca767274045fbafb123bbc5d99bc15ce2c5bacb52e378c",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4021E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4021E0-PSG.edf"
+    },
+    {
+      "file": "SC4021EH-Hypnogram.edf",
+      "bytes": 4804,
+      "sha256": "62b49b26bf08941cb0e974cfeeb0a820bf7dd43fb0c66dd89b4c3a6c0ee45dd8",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4021EH-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4021EH-Hypnogram.edf"
+    },
+    {
+      "file": "SC4031E0-PSG.edf",
+      "bytes": 51438848,
+      "sha256": "ce2314a60dd6e1437f9cd720c2e59c23aabe471e4821f9544593109a9b0715dd",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4031E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4031E0-PSG.edf"
+    },
+    {
+      "file": "SC4031EC-Hypnogram.edf",
+      "bytes": 3700,
+      "sha256": "7ec3d3c8d8f1a89d48df4cc85be374fbdf70d4b5ec5ec321c03d586dd2cc1617",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4031EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4031EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4041EC-Hypnogram.edf",
+      "bytes": 4830,
+      "sha256": "da33d90216e031a6b04c9ebaddcdf7abc223f1e61fd5899093815c7aea65e39a",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4041EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4041EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4041E0-PSG.edf",
+      "bytes": 46878848,
+      "sha256": "28ae3a51cca93bb1502a2c613b4a84758d09feee042b925a09a7cdce0c1bf4f5",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4041E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4041E0-PSG.edf"
+    },
+    {
+      "file": "SC4051EC-Hypnogram.edf",
+      "bytes": 3976,
+      "sha256": "3551410c52b819efbe6297d333ee729e4f5c7ba11c0cae6d321feee79a39ed43",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4051EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4051EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4051E0-PSG.edf",
+      "bytes": 49651328,
+      "sha256": "e460a9589726f19a1fe544fb79c46f82562229f19696e0c0fb5ffd9f959dab7c",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4051E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4051E0-PSG.edf"
+    },
+    {
+      "file": "SC4061E0-PSG.edf",
+      "bytes": 50526848,
+      "sha256": "8a1c1d812f3207e006c8f1ae7b7a9d5625a8aaba09869aea42562ac61d1c984a",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4061E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4061E0-PSG.edf"
+    },
+    {
+      "file": "SC4061EC-Hypnogram.edf",
+      "bytes": 2620,
+      "sha256": "a99705c2b75462acb6d422681526265e476f0b01708eee2e845d0d89b5aa1ae8",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4061EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4061EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4071EC-Hypnogram.edf",
+      "bytes": 3628,
+      "sha256": "f81cfe51fa83a91096e4ba0538168ada9f604e8cb5f9c40849ebdd22c1cfeafd",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4071EC-Hypnogram.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4071EC-Hypnogram.edf"
+    },
+    {
+      "file": "SC4071E0-PSG.edf",
+      "bytes": 51256448,
+      "sha256": "417081e551fb60e3a735059c5df4ee2cf320cb342c563e666cb2b3fde98f64e3",
+      "official_checksum_match": true,
+      "source": "https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/SC4071E0-PSG.edf",
+      "mirror": "https://physionet-open.s3.amazonaws.com/sleep-edfx/1.0.0/sleep-cassette/SC4071E0-PSG.edf"
+    }
+  ]
+}

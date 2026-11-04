@@ -6,6 +6,8 @@ import contextlib
 import ast
 import io
 import itertools
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -102,34 +104,95 @@ class TeachingExamples(unittest.TestCase):
         np.testing.assert_allclose(reconstruction, result["X"], atol=1e-12)
         self.assertEqual(len(result["_figures"]), 4)
 
-    def test_hmm_probabilities_and_long_sequence_decoding(self):
+    def test_sleep_data_provenance_and_recording_boundaries(self):
+        path = ROOT / "website/data/sleep_edf.csv"
+        metadata = json.loads(path.with_name("sleep_edf_provenance.json").read_text())
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), metadata["csv_sha256"])
+        data = pd.read_csv(path)
+        self.assertEqual(data.shape, (21948, 19))
+        self.assertFalse(data.isna().any().any())
+        self.assertEqual((data.stage >= 0).sum(), 21947)
+        self.assertEqual(set(data.stage), {-1, 0, 1, 2, 3, 4})
+        self.assertEqual(len(metadata["source_files"]), 16)
+        self.assertEqual(list(data.columns[4:]), metadata["features"])
+        self.assertFalse(data.duplicated(["subject", "epoch"]).any())
+        for subject, recording in data.groupby("subject"):
+            np.testing.assert_array_equal(recording.epoch, np.arange(len(recording)))
+            np.testing.assert_array_equal(recording.seconds, np.arange(len(recording)) * 30)
+        self.assertEqual(sorted(data.subject.unique()), metadata["subjects"])
+
+    def test_sleep_hmm_subject_isolation_outputs_and_independent_path_checks(self):
         result = run_question(4)
-        for frame in [result["transition"], result["emission"]]:
-            self.assertTrue(np.isfinite(frame.values).all())
-            self.assertTrue((frame.values > 0).all())
-            np.testing.assert_allclose(frame.sum(axis=1), 1)
-        # Repeated small ranges favor wet. Probability multiplication underflows
-        # on this sequence and can silently switch the returned path to dry.
-        self.assertEqual(set(result["viterbi"](["small"] * 2000)), {"wet"})
-        self.assertEqual(result["viterbi"]([]), [])
-        # Independently enumerate every path on a tiny sequence to verify that
-        # decoding maximizes the complete path probability, including emissions.
-        seen = ["large", "medium", "small", "small", "large"]
-        paths = list(itertools.product(result["states"], repeat=len(seen)))
-        def path_probability(path):
-            score = result["start"][path[0]] * result["emission"].loc[path[0], seen[0]]
-            for day in range(1, len(seen)):
-                score *= result["transition"].loc[path[day - 1], path[day]]
-                score *= result["emission"].loc[path[day], seen[day]]
-            return score
-        self.assertEqual(result["viterbi"](seen), list(max(paths, key=path_probability)))
-        self.assertLess(result["train"].date.max(), result["test"].date.min())
-        self.assertEqual(result["previous_states"].iloc[0], result["train"]["state"].iloc[-1])
-        for previous, predicted in zip(result["previous_states"], result["forecast_predictions"]):
-            expected = "wet" if result["transition"].loc[previous, "wet"] > 0.5 else "dry"
-            self.assertEqual(predicted, expected)
-        self.assertEqual(len(result["forecast_predictions"]), len(result["test"]))
-        self.assertTrue(np.isfinite(result["forecast_accuracy"]))
+        self.assertEqual(len(result["_figures"]), 5)
+        self.assertEqual(len(result["predictions"]), 21948)  # Includes the unscored epoch.
+        self.assertTrue(result["predictions"]["decoded"].between(0, 4).all())
+        self.assertNotIn("stage", result["features"])
+        self.assertEqual(len(result["features"]), 15)
+        for held_out, training in result["fold_training_subjects"].items():
+            self.assertNotIn(held_out, training)
+            self.assertEqual(len(training), 7)
+        model = result["example_model"]
+        for probabilities in [model["transition"], model["start"], model["prior"]]:
+            self.assertTrue(np.isfinite(probabilities).all())
+            self.assertTrue((probabilities > 0).all())
+            np.testing.assert_allclose(probabilities.sum(axis=-1), 1)
+        training = result["df"]
+        training = training[(training.subject != "SC400") & (training.stage >= 0)]
+        np.testing.assert_allclose(model["centre"], training[result["features"]].mean())
+        np.testing.assert_allclose(model["scale"], training[result["features"]].std(ddof=0))
+        # Assert the actual, independently verified benchmark, not an inflated target.
+        self.assertAlmostEqual(result["hmm_accuracy"], 0.8612566637809268, places=10)
+        self.assertAlmostEqual(result["hmm_macro_f1"], 0.6960567151192041, places=10)
+        np.testing.assert_allclose(result["posterior"].sum(axis=1), 1, atol=1e-8)
+        # Check Gaussian density against a separate scipy implementation.
+        from scipy.stats import norm
+        values = result["example"][result["features"]].to_numpy()[:5]
+        z = (values - model["centre"]) / model["scale"]
+        expected = norm.logpdf(z[:, None, :], loc=model["means"], scale=np.sqrt(model["variances"])).sum(axis=2)
+        np.testing.assert_allclose(result["log_emissions"](model, values), expected)
+        # Enumerate every path in a small HMM to independently check both algorithms.
+        rng = np.random.default_rng(42)
+        for trial in range(4):
+            start = rng.dirichlet(np.ones(3))
+            transition = rng.dirichlet(np.ones(3), size=3)
+            emissions = rng.normal(-2, 1, (5, 3))
+            paths = list(itertools.product(range(3), repeat=5))
+            weights = []
+            for path in paths:
+                weight = np.log(start[path[0]])
+                for time in range(5):
+                    weight += emissions[time, path[time]]
+                    if time > 0:
+                        weight += np.log(transition[path[time - 1], path[time]])
+                weights.append(weight)
+            weights = np.array(weights)
+            np.testing.assert_array_equal(result["viterbi"](emissions, start, transition), paths[weights.argmax()])
+            posterior, likelihood = result["forward_backward"](emissions, start, transition)
+            normalizer = np.logaddexp.reduce(weights)
+            self.assertAlmostEqual(likelihood, normalizer, places=12)
+            for time in range(5):
+                for state in range(3):
+                    mask = np.array([path[time] == state for path in paths])
+                    self.assertAlmostEqual(posterior[time, state], np.exp(weights[mask] - normalizer).sum(), places=12)
+        emissions = np.tile([[-1., -100., -100.]], (3000, 1))
+        start = np.ones(3) / 3
+        transition = np.ones((3, 3)) / 3
+        self.assertTrue((result["viterbi"](emissions, start, transition) == 0).all())
+        posterior, likelihood = result["forward_backward"](emissions, start, transition)
+        self.assertTrue(np.isfinite(likelihood))
+        np.testing.assert_allclose(posterior.sum(axis=1), 1)
+        self.assertEqual(len(result["viterbi"](np.empty((0, 3)), start, transition)), 0)
+        self.assertEqual(result["forward_backward"](np.empty((0, 3)), start, transition)[1], 0)
+        # Known training gaps and person boundaries cannot invent extra transitions.
+        fake = training.head(7).copy()
+        fake["subject"] = ["A", "A", "A", "A", "A", "B", "B"]
+        fake["stage"] = [0, -1, 1, 2, 3, 4, 4]
+        fitted = result["fit_hmm"](fake)
+        expected_counts = np.ones((5, 5))
+        expected_counts[1, 2] += 1
+        expected_counts[2, 3] += 1
+        expected_counts[4, 4] += 1
+        np.testing.assert_allclose(fitted["transition"], expected_counts / expected_counts.sum(axis=1, keepdims=True))
 
     def test_unit_five_uses_real_data_and_keeps_cv_within_training_set(self):
         cart = run_question(5)

@@ -4,6 +4,7 @@ The website shows the same code (website/code/weekN.py), so the notebooks and th
 Usage:  pip install nbformat nbclient ipykernel   then   python build_notebooks.py
 """
 import re
+import argparse
 from pathlib import Path
 
 import nbformat
@@ -21,7 +22,7 @@ DATASETS = {
     1: "Real Seattle daily weather, 2012–2015 (`website/data/seattle_weather.csv`).",
     2: "Real Seattle daily weather; next-day targets use a chronological train/test split.",
     3: "Real UCI Wine measurements (`sklearn.datasets.load_wine`): 178 samples, 13 features. Cultivar labels are used only after fitting.",
-    4: "Real Seattle daily weather; learn on 2012–2014 and evaluate on 2015. Decoding and forecasting are evaluated separately.",
+    4: "Sleep-stage recognition from real Sleep-EDF EEG and eye-motion features (`website/data/sleep_edf.csv`). Eight leave-one-person-out folds. Whole-sequence decoding, not forecasting. [Source and attribution](https://physionet.org/content/sleep-edfx/1.0.0/); [feature preparation and checksums](website/data/sleep_edf_provenance.json).",
     5: "Real Wisconsin Diagnostic Breast Cancer measurements (`sklearn.datasets.load_breast_cancer`): 569 samples, 30 features. Cross-validation uses training data only.",
 }
 SETUP = '''%config InlineBackend.figure_format = "svg"
@@ -31,7 +32,7 @@ sys.path.insert(0, "website")          # plot style lives in website/weather.py
 from weather import use_style
 use_style()
 if os.path.basename(os.getcwd()) != "website":
-    os.chdir("website")                # so weather programs find data/seattle_weather.csv'''
+    os.chdir("website")                # so programs find bundled data/*.csv'''
 
 
 def parse(path):
@@ -48,7 +49,12 @@ def parse(path):
     return questions
 
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--unit", type=int, choices=WEEKS, help="Rebuild only the selected unit")
+selected = parser.parse_args().unit
 for number, (name, title) in WEEKS.items():
+    if selected is not None and number != selected:
+        continue
     questions = parse(ROOT / "website" / "code" / f"week{number}.py")
     cells = [nbformat.v4.new_markdown_cell(
         f"# Unit {number} — {title}\n\nThe practice questions of this unit (21CSC305P). "

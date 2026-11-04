@@ -30,7 +30,7 @@ test("Python bootstrap loads real weather; clustering and classifiers use built-
   w.eval(source("run.js"));
   w.loadScript = async () => {};
   assert.equal(await w.getPython(), py);
-  for (const unit of [1, 2, 4]) {
+  for (const unit of [1, 2]) {
     const paths = [...source(`code/week${unit}.py`).matchAll(/pd\.read_csv\("([^"]+)"\)/g)];
     assert.ok(paths.length > 0);
     for (const [, path] of paths) {
@@ -42,6 +42,33 @@ test("Python bootstrap loads real weather; clustering and classifiers use built-
   for (const unit of [3, 5]) {
     assert.doesNotMatch(source(`code/week${unit}.py`), /read_csv|weather_regimes/);
   }
+});
+
+test("Unit 4 loads its signal CSV and recovers from a failed dataset download", async t => {
+  const dom = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=4", runScripts: "outside-only" });
+  const w = dom.window;
+  t.after(() => w.close());
+  w.matchMedia = () => ({ matches: false });
+  w.requestIdleCallback = () => {};
+  let fail = true, starts = 0;
+  const files = new Map();
+  w.fetch = async path => ({ ok: !(fail && path === "data/sleep_edf.csv"), text: async () => source(path) });
+  w.loadPyodide = async () => {
+    starts++;
+    return { loadPackage: async () => {}, runPython() {},
+      FS: { mkdir() {}, writeFile: (path, contents) => files.set(path, contents) } };
+  };
+  w.eval(source("output.js"));
+  w.eval(source("run.js"));
+  w.loadScript = async () => {};
+  await assert.rejects(w.getPython(), /Could not load data\/sleep_edf.csv/);
+  assert.equal(w.document.getElementById("py").dataset.state, "error");
+  fail = false;
+  await w.getPython();
+  assert.equal(starts, 2);
+  assert.equal(files.get("data/sleep_edf.csv"), source("data/sleep_edf.csv"));
+  assert.equal(files.has("data/seattle_weather.csv"), false);
+  assert.equal(w.document.getElementById("py").dataset.state, "ready");
 });
 
 async function page(t, unit = 1) {
@@ -99,7 +126,7 @@ test("every practice can view its actual dataset before running Python", async t
     1: ["Seattle daily weather", 1461, 6, "2012-01-01"],
     2: ["Seattle daily weather", 1461, 6, "2012-01-01"],
     3: ["Wine", 178, 14, "14.23"],
-    4: ["Seattle daily weather", 1461, 6, "2012-01-01"],
+    4: ["Sleep-EDF: sleep stages from EEG and eye movements", 200, 19, "SC400"],
     5: ["Wisconsin Diagnostic Breast Cancer", 569, 31, "17.99"],
   };
   for (const [unit, [name, rows, columns, firstValue]] of Object.entries(datasets)) {
@@ -115,6 +142,13 @@ test("every practice can view its actual dataset before running Python", async t
       assert.equal(panel.querySelector("h2").textContent, name);
       assert.equal(panel.querySelectorAll("tbody tr").length, rows);
       assert.equal(panel.querySelectorAll("thead th").length, columns);
+      if (Number(unit) === 4) {
+        assert.match(panel.querySelector(".dataset-size").textContent, /21,948 rows/);
+        assert.match(panel.querySelector(".dataset-size").textContent, /first 200 rows/);
+        assert.match(panel.querySelector(".dataset-size").textContent, /extracted/);
+        assert.match(panel.querySelector("a[href$='provenance.json']").textContent, /checksums/);
+        assert.doesNotMatch(panel.querySelector("caption").textContent, /all original rows/);
+      }
       assert.equal(panel.querySelector("tbody td").textContent, firstValue);
       assert.ok(panel.querySelector("a[download]").getAttribute("href").endsWith(".csv"));
       assert.equal(p.executed.length, 0);
