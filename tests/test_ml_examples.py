@@ -194,6 +194,32 @@ class TeachingExamples(unittest.TestCase):
         expected_counts[4, 4] += 1
         np.testing.assert_allclose(fitted["transition"], expected_counts / expected_counts.sum(axis=1, keepdims=True))
 
+    def test_sleep_explorer_matches_the_full_program_for_every_person(self):
+        result = run_question(4)
+        bridge = dict(result)
+        exec(compile((ROOT / "website/code/sleep_bridge.py").read_text(), "sleep_bridge.py", "exec"), bridge)
+        source = (ROOT / "website/code/week4.py").read_text()
+        self.assertIn("# 2. Leave one person out", source)  # the page reuses everything above this line
+        table = {row["Person"]: row for row in result["fold_scores"]}
+        pooled = {key: np.zeros((5, 5), dtype=int) for key in ["majority", "independent", "decoded"]}
+        for subject in result["subjects"]:
+            fold = json.loads(bridge["explore"](subject))
+            self.assertEqual(fold["subject"], subject)
+            self.assertNotIn(subject, fold["training_subjects"])
+            self.assertEqual(len(fold["training_subjects"]), 7)
+            self.assertEqual(fold["training_segments"], int(((result["df"].subject != subject) & (result["df"].stage >= 0)).sum()))
+            self.assertEqual(sum(fold["training_stage_counts"]), fold["training_segments"])
+            for key in pooled:
+                self.assertAlmostEqual(fold["models"][key]["accuracy"], table[subject][key + " accuracy"], places=12)
+                self.assertAlmostEqual(fold["models"][key]["macro_f1"], table[subject][key + " macro F1"], places=12)
+                pooled[key] += np.array(fold["models"][key]["confusion"])
+            np.testing.assert_allclose(np.sum(fold["posterior"], axis=1), 1, atol=3e-3)  # values are rounded to 3 decimals
+            np.testing.assert_allclose(np.sum(fold["transition"], axis=1), 1)
+            self.assertEqual(len(fold["expert"]), fold["segments"])
+            self.assertEqual(len(fold["decoded"]), fold["segments"])
+        # Summing the eight held-out confusion matrices gives the benchmark of the full program.
+        self.assertAlmostEqual(np.trace(pooled["decoded"]) / pooled["decoded"].sum(), 0.8612566637809268, places=10)
+
     def test_unit_five_uses_real_data_and_keeps_cv_within_training_set(self):
         cart = run_question(5)
         real = load_breast_cancer()

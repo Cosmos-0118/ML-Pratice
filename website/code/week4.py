@@ -121,16 +121,11 @@ def evaluate(actual, predicted):
     return np.mean(actual == predicted), stage_f1.mean(), stage_f1, matrix
 
 
-# 2. Leave one person out, fit on the other seven, decode their entire recording.
-# This supervised HMM learns from labelled training stages, without Baum–Welch.
-records = []
-fold_scores = []
-fold_training_subjects = {}
-for held_out in subjects:
+def run_fold(held_out):
+    # Fit on everyone except held_out, then decode that person's entire recording.
     training = df[df["subject"] != held_out]
     test = df[df["subject"] == held_out].copy()
     model = fit_hmm(training)
-    fold_training_subjects[held_out] = list(training["subject"].unique())
     test["decoded"], test["independent"] = decode_record(model, test[features].to_numpy())
     test["majority"] = model["prior"].argmax()
     # -1 is movement/unscored, excluded only when scoring predictions.
@@ -141,6 +136,17 @@ for held_out in subjects:
             scored["stage"].to_numpy(), scored[column].to_numpy())
         row[column + " accuracy"] = accuracy
         row[column + " macro F1"] = macro_f1
+    return test, model, row, list(training["subject"].unique())
+
+
+# 2. Leave one person out, fit on the other seven, decode their entire recording.
+# This supervised HMM learns from labelled training stages, without Baum–Welch.
+records = []
+fold_scores = []
+fold_training_subjects = {}
+for held_out in subjects:
+    test, model, row, training_subjects = run_fold(held_out)
+    fold_training_subjects[held_out] = training_subjects
     fold_scores.append(row)
     records.append(test)
     # Always illustrate the first person; never select the best test result.

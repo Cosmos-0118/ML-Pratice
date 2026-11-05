@@ -27,6 +27,7 @@ test("Python bootstrap loads real weather; clustering and classifiers use built-
   };
   w.loadPyodide = async () => py;
   w.eval(source("output.js"));
+  w.eval(source("sleep.js"));
   w.eval(source("run.js"));
   w.loadScript = async () => {};
   assert.equal(await w.getPython(), py);
@@ -59,6 +60,7 @@ test("Unit 4 loads its signal CSV and recovers from a failed dataset download", 
       FS: { mkdir() {}, writeFile: (path, contents) => files.set(path, contents) } };
   };
   w.eval(source("output.js"));
+  w.eval(source("sleep.js"));
   w.eval(source("run.js"));
   w.loadScript = async () => {};
   await assert.rejects(w.getPython(), /Could not load data\/sleep_edf.csv/);
@@ -84,6 +86,7 @@ async function page(t, unit = 1) {
   w.matchMedia = () => ({ matches: false });
   w.fetch = async path => ({ ok: true, text: async () => source(path) });
   w.eval(source("output.js"));
+  w.eval(source("sleep.js"));
   w.eval(source("run.js"));
   const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
   const flush = async () => {
@@ -98,6 +101,7 @@ async function page(t, unit = 1) {
   const articles = [...w.document.querySelectorAll(".q")];
   for (const art of articles) {
     const body = art.querySelector(".panel-body");
+    if (!body) continue;                                // the Unit 4 explorer has no code panel
     const height = () => art.querySelector(".editor").hidden ? 400 : 200;
     Object.defineProperties(body, { offsetHeight: { get: height }, scrollHeight: { get: height } });
   }
@@ -298,4 +302,152 @@ test("an early failure of a queued question cannot let its retry bypass an activ
   loading.resolve(); await p.flush(); await Promise.all([first, retry]);
   assert.equal(loadsBeforeRelease, 1, "a failed ticket must still wait for the preceding ticket");
   assert.equal(p.executed.length, 2);
+});
+
+// ---- Unit 4 explorer: the page, DOM and handlers are real; only the Python boundary is modelled ----
+const MODEL_END = "# 2. Leave one person out";
+const SUBJECTS = ["SC400", "SC401", "SC402", "SC403", "SC404", "SC405", "SC406", "SC407"];
+function fakeFold(subject) {
+  const n = 240, expert = [], independent = [], decoded = [], posterior = [];
+  for (let i = 0; i < n; i++) {
+    const s = Math.floor(i / 60) % 5;
+    expert.push(s); independent.push(i % 7 === 0 ? (s + 1) % 5 : s); decoded.push(i % 40 === 0 ? (s + 1) % 5 : s);
+    posterior.push([0, 1, 2, 3, 4].map(k => (k === s ? 0.8 : 0.05)));
+  }
+  const matrix = hits => [0, 1, 2, 3, 4].map(r => [0, 1, 2, 3, 4].map(c => (r === c ? hits : 1)));
+  const model = (accuracy, f1) => ({ accuracy, macro_f1: f1, stage_f1: [f1, f1, f1, f1, f1], confusion: matrix(accuracy * 40) });
+  return JSON.stringify({
+    subject, states: ["Wake", "N1", "N2", "N3", "REM"], features: Array.from({ length: 15 }, (_, k) => "f" + k),
+    training_subjects: SUBJECTS.filter(s => s !== subject), training_segments: 1000, training_stage_counts: [500, 50, 250, 100, 100],
+    segments: n, scored_segments: n, expert, majority: expert.map(() => 0), independent, decoded, posterior,
+    eeg_delta: expert.map(v => 5 + v), eeg_beta: expert.map(v => 2 + v / 2),
+    models: { majority: model(0.5, 0.2), independent: model(0.8, 0.6), decoded: model(0.9, 0.7) },
+    transition: [0, 1, 2, 3, 4].map(r => [0, 1, 2, 3, 4].map(c => (r === c ? 0.9 : 0.025))),
+    signature: [0, 1, 2, 3, 4].map(() => Array.from({ length: 15 }, (_, k) => k / 7 - 1)),
+    log_likelihood: -1, row: {},
+  });
+}
+
+async function explorer(t) {
+  const p = await page(t, 4);
+  p.w.HTMLCanvasElement.prototype.getContext = () => null;
+  const calls = [];
+  const namespace = { destroy() {}, get: name => name === "explore"
+    ? Object.assign(subject => { calls.push(subject); return fakeFold(subject); }, { destroy() {} }) : undefined };
+  p.py.loadPackagesFromImports = async () => {};
+  p.py.runPython = (code, options) => code === "dict()" ? namespace : undefined;
+  const art = p.w.document.querySelector(".q.sx");
+  const card = s => art.querySelector(`[data-subject="${s}"]`);
+  return { ...p, art, calls, card, namespace,
+    state: s => card(s).querySelector(".sx-state").textContent,
+    run: s => card(s).querySelector(".sx-run") };
+}
+
+test("Unit 4 opens on the explorer, with the full program kept as its own tab", async t => {
+  const p = await explorer(t);
+  const tabs = [...p.w.document.querySelectorAll(".tab")].map(b => b.textContent);
+  assert.deepEqual(tabs, ["Explorer", "Full program"]);
+  assert.equal(p.art.querySelectorAll(".sx-card").length, 8);
+  assert.deepEqual([...p.art.querySelectorAll(".sx-card")].map(c => c.dataset.subject), SUBJECTS);
+  assert.ok(p.w.document.querySelector("#q2 .run"), "the complete program still has its Run button");
+  assert.match(p.w.document.querySelector("#q2 textarea").value, /def run_fold/);
+});
+
+test("the page's person list matches the people in the dataset", () => {
+  const people = [...new Set(source("data/sleep_edf.csv").trim().split("\n").slice(1).map(line => line.split(",")[0]))];
+  assert.deepEqual(people, SUBJECTS);
+});
+
+test("the explorer reuses the week4.py model code and fails loudly if its marker moves", async t => {
+  const w = new JSDOM(source("unit.html"), { url: "http://localhost/unit.html?u=4", runScripts: "outside-only" }).window;
+  t.after(() => w.close());
+  w.matchMedia = () => ({ matches: false });
+  w.fetch = async path => ({ ok: true, text: async () => source(path) });
+  w.requestIdleCallback = () => {};
+  w.eval(source("output.js")); w.eval(source("sleep.js")); w.eval(source("run.js"));
+  const week4 = source("code/week4.py");
+  const code = w.sleepModelCode(week4);
+  for (const name of ["fit_hmm", "log_emissions", "viterbi", "forward_backward", "decode_record", "evaluate", "run_fold"]) {
+    assert.match(code, new RegExp(`def ${name}\\(`), name);
+  }
+  assert.doesNotMatch(code, /for held_out in subjects/, "the all-people loop is not part of the reusable model code");
+  assert.ok(week4.includes(MODEL_END));
+  assert.throws(() => w.sleepModelCode(week4.replace(MODEL_END, "# 2. Evaluate")), /no longer has the line/);
+  await new Promise(r => setImmediate(r));
+});
+
+test("Run trains one person live, locks every button, and shows that person's own result", async t => {
+  const p = await explorer(t);
+  p.run("SC403").click();
+  assert.equal(p.run("SC400").disabled, true, "all buttons lock synchronously on the first click");
+  assert.equal(p.art.querySelector(".sx-all").disabled, true);
+  p.run("SC405").click();                               // ignored: a run is already accepted
+  await p.flush();
+  assert.deepEqual(p.calls, ["SC403"]);
+  assert.match(p.state("SC403"), /HMM 90\.0%/);
+  assert.equal(p.state("SC405"), "Not run yet");
+  assert.match(p.art.querySelector(".sx-head h2").textContent, /^SC403/);
+  const head = p.art.querySelector(".sx-head p").textContent;
+  assert.doesNotMatch(head, /trained on[^(]*SC403/, "the tested person is not in the training list");
+  assert.match(head, /SC400, SC401, SC402, SC404, SC405, SC406, SC407/);
+  assert.equal(p.run("SC400").disabled, false);
+  assert.equal(p.card("SC403").classList.contains("selected"), true);
+  assert.equal(p.art.querySelectorAll(".sx-chart .plot svg").length > 0, true);
+});
+
+test("Run all 8 runs everyone in order and pools the confusion matrices", async t => {
+  const p = await explorer(t);
+  p.art.querySelector(".sx-all").click();
+  await p.flush();
+  assert.deepEqual(p.calls, SUBJECTS);
+  assert.match(p.art.querySelector(".sx-people-table h3").textContent, /pooled over 8 of 8/);
+  assert.equal(p.art.querySelectorAll(".sx-people-table tbody tr").length, 8);
+  p.art.querySelector('tr[data-pick="SC401"]').click();
+  assert.match(p.art.querySelector(".sx-head h2").textContent, /^SC401/);
+});
+
+test("clicking a finished card shows that person without running Python again", async t => {
+  const p = await explorer(t);
+  p.run("SC400").click(); await p.flush();
+  p.run("SC401").click(); await p.flush();
+  assert.match(p.art.querySelector(".sx-head h2").textContent, /^SC401/);
+  p.card("SC400").click();
+  assert.match(p.art.querySelector(".sx-head h2").textContent, /^SC400/);
+  assert.deepEqual(p.calls, ["SC400", "SC401"]);
+});
+
+test("a failed run reports the error, unlocks the buttons and a retry succeeds", async t => {
+  const p = await explorer(t);
+  const explore = p.namespace.get;
+  p.namespace.get = () => Object.assign(() => { throw new Error("PythonError: boom"); }, { destroy() {} });
+  p.run("SC402").click(); await p.flush();
+  assert.match(p.art.querySelector(".sx-error").textContent, /Could not run SC402\. .*boom/);
+  assert.equal(p.run("SC402").disabled, false);
+  assert.equal(p.state("SC402"), "Not run yet");
+  p.namespace.get = explore;
+  p.run("SC402").click(); await p.flush();
+  assert.equal(p.art.querySelector(".sx-error"), null);
+  assert.match(p.art.querySelector(".sx-head h2").textContent, /^SC402/);
+});
+
+test("explorer runs wait behind a running question on the shared interpreter", async t => {
+  const p = await explorer(t), gate = deferred();
+  const held = p.w.exclusive(() => gate.promise);        // another run holds the interpreter
+  p.run("SC400").click(); await p.flush();
+  assert.deepEqual(p.calls, [], "must not run while the interpreter is busy");
+  assert.equal(p.run("SC401").disabled, true);
+  gate.resolve(); await held; await p.flush();
+  assert.deepEqual(p.calls, ["SC400"]);
+});
+
+test("hovering and arrow keys read the 30-second segment under the cursor", async t => {
+  const p = await explorer(t);
+  p.run("SC400").click(); await p.flush();
+  const chart = p.art.querySelector(".sx-chart");
+  chart.dispatchEvent(new p.w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  const read = p.art.querySelector(".sx-read").textContent;
+  assert.match(read, /Expert/); assert.match(read, /Independent/); assert.match(read, /HMM/);
+  const buttons = [...p.art.querySelectorAll(".sx-seg button")];
+  buttons.find(b => b.textContent === "1 h").click();
+  assert.match(p.art.querySelector(".sx-window").textContent, /independent wrong on/);
 });

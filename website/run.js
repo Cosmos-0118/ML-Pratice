@@ -38,6 +38,15 @@ const DATASETS = {
 };
 let pyReady = null;
 let busy = Promise.resolve();     // questions run one at a time, so their output and plots never get mixed up
+// Run `task` when the shared interpreter is free. The place in line is taken before anything is awaited.
+async function exclusive(task) {
+  const turn = busy;
+  let release;
+  const finished = new Promise(r => { release = r; });
+  busy = turn.then(() => finished);
+  await turn;
+  try { return await task(); } finally { release(); }
+}
 
 // Plots are drawn as SVG (sharp at any size). Text and axis colours are swapped for the page's colour variables,
 // so the plots follow light / dark mode, even after the theme is toggled.
@@ -195,18 +204,9 @@ document.addEventListener("keydown", e => {
   if (box && box.go) { e.preventDefault(); box.go(e.key === "ArrowRight" ? 1 : -1); }
 });
 
-function buildQuestion(q, i, unit) {
-  const dataset = DATASETS[unit];
-  const art = document.createElement("article");
-  art.className = "q"; art.id = "q" + (i + 1); art.hidden = true;
-  art.setAttribute("role", "tabpanel");
-  art.innerHTML = `
-    <div class="q-heading">
-      <p class="q-tag">${esc(q.tag)}</p>
-      <button class="btn dataset-button" type="button" aria-expanded="false" aria-controls="dataset-${i + 1}">Dataset</button>
-    </div>
-    <h1 class="q-title">${esc(q.title)}</h1>
-    <p class="q-desc">${esc(q.description)}</p>
+// The "Dataset" disclosure shared by every practice page (the explorer on Unit 4 uses it too).
+function datasetPanelMarkup(i, dataset) {
+  return `
     <section class="dataset-panel" id="dataset-${i + 1}" aria-labelledby="dataset-title-${i + 1}" hidden>
       <h2 id="dataset-title-${i + 1}">${esc(dataset.name)}</h2>
       <p>${esc(dataset.description)}</p>
@@ -216,26 +216,10 @@ function buildQuestion(q, i, unit) {
         ${dataset.provenance ? `<a href="${dataset.provenance}" target="_blank" rel="noopener noreferrer">Preparation and source checksums ↗</a>` : ""}
       </div>
       <div class="dataset-content" aria-live="polite"></div>
-    </section>
-    <div class="panel">
-      <div class="halo" aria-hidden="true"></div><div class="fx" aria-hidden="true"></div>
-      <div class="panel-inner">
-        <div class="panel-bar">
-          <span class="wdots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="fname">unit${unit}_${q.tag.toLowerCase().replace(/\s+/g, "")}.py</span>
-          <span class="spacer"></span>
-          <span class="done" hidden></span>
-          <button class="btn reset" type="button" title="Undo your edits">Reset</button>
-          <button class="btn show-code" type="button" hidden>${ICON_CODE} Code</button>
-          <button class="btn primary run" type="button" title="Run (Ctrl / ⌘ + Enter)">${ICON_PLAY} Run</button>
-        </div>
-        <div class="panel-body">
-          <div class="editor"><pre aria-hidden="true"></pre><textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Python code"></textarea></div>
-          <div class="output" hidden aria-live="polite"><pre class="out"></pre><div class="figs"></div></div>
-          <div class="veil" aria-hidden="true"><span class="sweep"></span><span class="veil-status">Running…</span></div>
-        </div>
-      </div>
-    </div>`;
+    </section>`;
+}
+
+function wireDataset(art, dataset) {
   const $ = s => art.querySelector(s);
   const datasetButton = $(".dataset-button"), datasetPanel = $(".dataset-panel"), datasetContent = $(".dataset-content");
   let datasetLoaded = false, datasetLoading = false;
@@ -269,6 +253,42 @@ function buildQuestion(q, i, unit) {
       datasetLoading = false;
     }
   };
+}
+
+function buildQuestion(q, i, unit) {
+  const dataset = DATASETS[unit];
+  const art = document.createElement("article");
+  art.className = "q"; art.id = "q" + (i + 1); art.hidden = true;
+  art.setAttribute("role", "tabpanel");
+  art.innerHTML = `
+    <div class="q-heading">
+      <p class="q-tag">${esc(q.tag)}</p>
+      <button class="btn dataset-button" type="button" aria-expanded="false" aria-controls="dataset-${i + 1}">Dataset</button>
+    </div>
+    <h1 class="q-title">${esc(q.title)}</h1>
+    <p class="q-desc">${esc(q.description)}</p>
+    ${datasetPanelMarkup(i, dataset)}
+    <div class="panel">
+      <div class="halo" aria-hidden="true"></div><div class="fx" aria-hidden="true"></div>
+      <div class="panel-inner">
+        <div class="panel-bar">
+          <span class="wdots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="fname">unit${unit}_${q.tag.toLowerCase().replace(/\s+/g, "")}.py</span>
+          <span class="spacer"></span>
+          <span class="done" hidden></span>
+          <button class="btn reset" type="button" title="Undo your edits">Reset</button>
+          <button class="btn show-code" type="button" hidden>${ICON_CODE} Code</button>
+          <button class="btn primary run" type="button" title="Run (Ctrl / ⌘ + Enter)">${ICON_PLAY} Run</button>
+        </div>
+        <div class="panel-body">
+          <div class="editor"><pre aria-hidden="true"></pre><textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Python code"></textarea></div>
+          <div class="output" hidden aria-live="polite"><pre class="out"></pre><div class="figs"></div></div>
+          <div class="veil" aria-hidden="true"><span class="sweep"></span><span class="veil-status">Running…</span></div>
+        </div>
+      </div>
+    </div>`;
+  const $ = s => art.querySelector(s);
+  wireDataset(art, dataset);
   const panel = $(".panel"), body = $(".panel-body"), editor = $(".editor"), pre = $(".editor pre"), code = $("textarea");
   const output = $(".output"), out = $(".out"), figs = $(".figs"), veilStatus = $(".veil-status");
   const run = $(".run"), reset = $(".reset"), showCode = $(".show-code"), done = $(".done"), fname = $(".fname");
@@ -371,7 +391,16 @@ async function buildPage() {
   document.getElementById("crumb").innerHTML = `<b>Unit ${unit}</b> · ${esc(UNITS[unit])}`;
   const root = document.getElementById("questions"), tabs = document.getElementById("tabs"), nav = document.getElementById("nextnav");
   const questions = parseQuestions(await (await fetch(`code/week${unit}.py`, { cache: "no-cache" })).text());
-  const arts = questions.map((q, i) => buildQuestion(q, i, unit));
+  // Unit 4 gets an interactive explorer (sleep.js) first; the complete program stays available as its own tab.
+  if (unit === 4 && typeof buildSleepExplorer === "function") {
+    const full = questions[0];
+    questions.splice(0, 1, { ...full, tag: "Explorer", explorer: true },
+      { ...full, tag: "Full program", description: "The complete program: all eight people at once, then the five summary graphs. Edit the code and press Run." });
+  }
+  const arts = questions.map((q, i) => q.explorer ? buildSleepExplorer(q, i, unit, {
+    DATASETS, ICON_PLAY, esc, highlight, datasetPanelMarkup, wireDataset, nextFrame, wait,
+    getPython: () => getPython(), exclusive: task => exclusive(task),
+  }) : buildQuestion(q, i, unit));
   root.replaceChildren(...arts);
 
   const buttons = questions.map((q, i) => {
