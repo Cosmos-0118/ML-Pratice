@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.datasets import load_wine, load_breast_cancer
+from sklearn.datasets import load_wine
 from sklearn.metrics import silhouette_score
 from scipy.cluster.hierarchy import fcluster
 from website.weather import use_style
@@ -222,10 +222,10 @@ class TeachingExamples(unittest.TestCase):
 
     def test_unit_five_uses_real_data_and_keeps_cv_within_training_set(self):
         cart = run_question(5)
-        real = load_breast_cancer()
-        self.assertEqual(cart["X"].shape, (569, 30))
+        real = load_wine()
+        self.assertEqual(cart["X"].shape, (178, 13))
         np.testing.assert_allclose(cart["X"], real.data)
-        self.assertEqual(set(cart["y_test"]), {0, 1})
+        self.assertEqual(set(cart["y_test"]), {0, 1, 2})
         self.assertFalse(set(cart["X_train"].index) & set(cart["X_test"].index))
         for train_ids, validation_ids in cart["cv"].split(cart["X_train"], cart["y_train"]):
             fold_indices = cart["X_train"].iloc[validation_ids].index
@@ -235,7 +235,7 @@ class TeachingExamples(unittest.TestCase):
         np.testing.assert_array_equal(cart["X_test"].index, ensemble["X_test"].index)
         for model in ensemble["models"].values():
             predicted = model.predict(ensemble["X_test"])
-            self.assertTrue(set(predicted) <= {0, 1})
+            self.assertTrue(set(predicted) <= {0, 1, 2})
         self.assertEqual(len(ensemble["cv_results"]), len(ensemble["models"]))
 
     def test_forecasts_train_before_their_test_period(self):

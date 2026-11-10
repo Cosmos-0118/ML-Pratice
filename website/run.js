@@ -10,12 +10,17 @@ const UNITS = {
 };
 const ACTIVE_UNIT = Math.min(5, Math.max(1, parseInt(new URLSearchParams(location.search).get("u"), 10) || 1));
 // Sleep-EDF is an attributed feature extract; the other CSVs contain original rows.
-// wine.csv and breast_cancer.csv copy scikit-learn 1.6.1's sklearn/datasets/data files,
+// wine.csv copies scikit-learn 1.6.1's sklearn/datasets/data file,
 // with feature names and a target column added as the CSV header.
 const WEATHER_DATASET = {
   name: "Seattle daily weather", file: "data/seattle_weather.csv",
   source: "https://github.com/vega/vega-datasets/blob/main/data/seattle-weather.csv",
   description: "Daily Seattle observations from 2012–2015: precipitation, maximum and minimum temperature, wind and weather type.",
+};
+const WINE_DATASET = {
+  name: "Wine", file: "data/wine.csv",
+  source: "https://archive.ics.uci.edu/dataset/109/wine",
+  description: "13 chemical measurements per wine. Target: 0, 1 or 2 identifies the cultivar. These are the same rows loaded by load_wine(). Unit 3 clusters the measurements without the target; Unit 5 trains trees and ensembles to predict it.",
 };
 const DATASETS = {
   1: WEATHER_DATASET, 2: WEATHER_DATASET,
@@ -25,16 +30,7 @@ const DATASETS = {
     provenance: "data/sleep_edf_provenance.json", previewRows: 200,
     description: "Eight people (SC400–SC407), one recording each: 21,948 nonoverlapping 30-second segments and 15 signal features. The inputs are natural-log power in delta (0.5–4 Hz), theta (4–8 Hz), alpha (8–12 Hz), sigma (12–16 Hz) and beta (16–30 Hz) bands for two EEG channels and horizontal eye movements (EOG). Stage: 0 = Wake, 1 = N1 (light sleep), 2 = N2, 3 = N3 (original stages 3/4 combined), 4 = REM; −1 marks one unscored segment. Subject, epoch and seconds identify separate recordings; they are not model inputs. Features come from real signals; labels come from expert annotations. Credit: Bob Kemp and colleagues / PhysioNet; Open Data Commons Attribution License v1.0.",
   },
-  3: {
-    name: "Wine", file: "data/wine.csv",
-    source: "https://archive.ics.uci.edu/dataset/109/wine",
-    description: "13 chemical measurements per wine. Target: 0, 1 or 2 identifies the cultivar. These are the same rows loaded by load_wine(). Clustering uses the measurements, not the target labels.",
-  },
-  5: {
-    name: "Wisconsin Diagnostic Breast Cancer", file: "data/breast_cancer.csv",
-    source: "https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic",
-    description: "30 measurements per sample. Target: 0 = malignant, 1 = benign. These are the same rows loaded by load_breast_cancer().",
-  },
+  3: WINE_DATASET, 5: WINE_DATASET,
 };
 let pyReady = null;
 let busy = Promise.resolve();     // questions run one at a time, so their output and plots never get mixed up
@@ -268,6 +264,11 @@ function buildQuestion(q, i, unit) {
     <h1 class="q-title">${esc(q.title)}</h1>
     <p class="q-desc">${esc(q.description)}</p>
     ${datasetPanelMarkup(i, dataset)}
+    ${q.lab ? `<section class="lab" aria-label="Interactive lab">
+      <div class="lab-bar"><span class="lab-tag">Interactive</span><span class="lab-hint">${esc(q.labHint)}</span><span class="spacer"></span>
+        <a class="lab-open" href="${esc(q.lab.replace("&embed=1", "").replace("?embed=1&", "?"))}" target="_blank" rel="noopener">Open full screen ↗</a></div>
+      <iframe loading="lazy" title="${esc(q.tag)}: interactive lab" src="${esc(q.lab)}"></iframe>
+    </section>` : ""}
     <div class="panel">
       <div class="halo" aria-hidden="true"></div><div class="fx" aria-hidden="true"></div>
       <div class="panel-inner">
@@ -397,6 +398,13 @@ async function buildPage() {
     questions.splice(0, 1, { ...full, tag: "Explorer", explorer: true },
       { ...full, tag: "Full program", description: "The complete program: all eight people at once, then the five summary graphs. Edit the code and press Run." });
   }
+  // Unit 5: each question opens with the interactive Forest Lab (its own page), then the Python program.
+  if (unit === 5) {
+    questions[0].lab = "forest-lab/?q=1&embed=1&data=wine";
+    questions[0].labHint = "Grow a CART tree on real wine data: pick two features, change the depth, hover to follow a wine down the tree.";
+    questions[1].lab = "forest-lab/?q=2&embed=1&data=wine";
+    questions[1].labHint = "Forest, boosting and voting on the same data: scrub the slider, hover to watch every learner vote.";
+  }
   const arts = questions.map((q, i) => q.explorer ? buildSleepExplorer(q, i, unit, {
     DATASETS, ICON_PLAY, esc, highlight, datasetPanelMarkup, wireDataset, nextFrame, wait,
     getPython: () => getPython(), exclusive: task => exclusive(task),
@@ -422,6 +430,7 @@ async function buildPage() {
       : unit > 1 ? link(`unit.html?u=${unit - 1}`, "Previous unit", `Unit ${unit - 1} · ${UNITS[unit - 1]}`, "prv") : "";
     if (i < questions.length - 1) html += link(`#q${i + 2}`, "Next", questions[i + 1].tag, "fwd");
     else if (unit < 5) html += link(`unit.html?u=${unit + 1}`, "Next unit", `Unit ${unit + 1} · ${UNITS[unit + 1]}`, "fwd");
+    else if (unit === 5) html += link("forest-lab/", "Try it live", "Forest Lab · 3D trees and ensembles", "fwd");
     else html += link("index.html", "Finished", "Back to all units", "fwd");
     nav.innerHTML = html;
     nav.querySelectorAll('a[href^="#q"]').forEach(a => a.onclick = e => {

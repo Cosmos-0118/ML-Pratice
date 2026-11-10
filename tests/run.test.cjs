@@ -39,7 +39,7 @@ test("Python bootstrap loads real weather; clustering and classifiers use built-
     }
   }
   assert.match(source("code/week3.py"), /load_wine\(as_frame=True\)/);
-  assert.match(source("code/week5.py"), /load_breast_cancer\(as_frame=True\)/);
+  assert.match(source("code/week5.py"), /load_wine\(as_frame=True\)/);
   for (const unit of [3, 5]) {
     assert.doesNotMatch(source(`code/week${unit}.py`), /read_csv|weather_regimes/);
   }
@@ -131,7 +131,7 @@ test("every practice can view its actual dataset before running Python", async t
     2: ["Seattle daily weather", 1461, 6, "2012-01-01"],
     3: ["Wine", 178, 14, "14.23"],
     4: ["Sleep-EDF: sleep stages from EEG and eye movements", 200, 19, "SC400"],
-    5: ["Wisconsin Diagnostic Breast Cancer", 569, 31, "17.99"],
+    5: ["Wine", 178, 14, "14.23"],
   };
   for (const [unit, [name, rows, columns, firstValue]] of Object.entries(datasets)) {
     const p = await page(t, unit);

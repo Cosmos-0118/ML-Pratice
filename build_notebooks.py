@@ -23,7 +23,7 @@ DATASETS = {
     2: "Real Seattle daily weather; next-day targets use a chronological train/test split.",
     3: "Real UCI Wine measurements (`sklearn.datasets.load_wine`): 178 samples, 13 features. Cultivar labels are used only after fitting.",
     4: "Sleep-stage recognition from real Sleep-EDF EEG and eye-motion features (`website/data/sleep_edf.csv`). Eight leave-one-person-out folds. Whole-sequence decoding, not forecasting. [Source and attribution](https://physionet.org/content/sleep-edfx/1.0.0/); [feature preparation and checksums](website/data/sleep_edf_provenance.json).",
-    5: "Real Wisconsin Diagnostic Breast Cancer measurements (`sklearn.datasets.load_breast_cancer`): 569 samples, 30 features. Cross-validation uses training data only.",
+    5: "Real UCI Wine measurements (`sklearn.datasets.load_wine`): 178 samples, 13 features, 3 cultivars. Cross-validation uses training data only.",
 }
 SETUP = '''%config InlineBackend.figure_format = "svg"
 import os

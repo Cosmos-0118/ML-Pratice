@@ -1,15 +1,15 @@
 #: Unit 5 – Combining models
 
 # %% Practice 1 | Implement CART learning algorithms to perform categorization
-#: Use real Wisconsin breast cancer measurements to train a decision tree. A depth of 3 keeps the rules readable. Compare tree depths using training cross-validation, then inspect errors on a separate test set. This is a classroom example.
+#: Use the real Wine measurements (178 wines, 13 chemical features) to train a CART decision tree that predicts the grape cultivar. A depth of 3 keeps the rules readable. Compare tree depths using training cross-validation, then inspect errors on a separate test set. Try the interactive lab below first: it shows the same tree growing, split by split.
 import matplotlib.pyplot as plt
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
 from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay
 
-# 1. Load features and labels: 0 = malignant, 1 = benign.
-dataset = load_breast_cancer(as_frame=True)
+# 1. Load features and labels: 0, 1 and 2 are the three cultivars.
+dataset = load_wine(as_frame=True)
 X = dataset.data
 y = dataset.target
 class_names = dataset.target_names
@@ -20,7 +20,7 @@ cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 tree = DecisionTreeClassifier(max_depth=3, random_state=42)
 tree.fit(X_train, y_train)
 y_pred = tree.predict(X_test)
-print("Labels: 0 = malignant, 1 = benign")
+print("Labels: 0, 1, 2 = the three cultivars")
 print(export_text(tree, feature_names=list(X.columns)))
 print("Test accuracy:", round(accuracy_score(y_test, y_pred), 3))
 print(classification_report(y_test, y_pred, target_names=class_names))
@@ -54,22 +54,22 @@ plt.legend()
 plt.show()
 
 # Graph 3: correct predictions are on the diagonal; errors are off the diagonal.
-ConfusionMatrixDisplay.from_predictions(y_test, y_pred, labels=[0, 1], display_labels=class_names, cmap="Blues")
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred, labels=[0, 1, 2], display_labels=class_names, cmap="Blues")
 plt.title("CART: actual rows, predicted columns")
 plt.show()
 
 # %% Practice 2 | Implement Ensemble learning models to perform classification
-#: Compare a single tree, bagging, random forest, AdaBoost and majority voting on the same real dataset and split. Use only training rows for cross-validation. Show held-out accuracy and errors; an ensemble does not have to beat every other model.
+#: Compare a single tree, bagging, random forest, AdaBoost and majority voting on the same real Wine data and split. Use only training rows for cross-validation. Show held-out accuracy and errors; an ensemble does not have to beat every other model. The interactive lab below shows how the votes combine.
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import BaggingClassifier, RandomForestClassifier, AdaBoostClassifier, VotingClassifier
 from sklearn.metrics import accuracy_score, f1_score, ConfusionMatrixDisplay
 
 # 1. Use the same real features, labels and split as the CART exercise.
-dataset = load_breast_cancer(as_frame=True)
+dataset = load_wine(as_frame=True)
 X = dataset.data
 y = dataset.target
 class_names = dataset.target_names
@@ -123,7 +123,7 @@ plt.show()
 fig, axes = plt.subplots(2, 3, figsize=(12, 8))
 for i, name in enumerate(models):
     axis = axes.flat[i]  # take the next drawing box in the grid
-    ConfusionMatrixDisplay.from_predictions(y_test, predictions[name], labels=[0, 1],
+    ConfusionMatrixDisplay.from_predictions(y_test, predictions[name], labels=[0, 1, 2],
         display_labels=class_names, cmap="Blues", colorbar=False, ax=axis)
     axis.set_title(name)
 axes.flat[5].set_visible(False)  # five models need five boxes
